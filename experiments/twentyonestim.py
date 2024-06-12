@@ -12,11 +12,22 @@ from tifffile import imread
 from pandastim import utils
 from pandastim.buddies import stimulus_buddies
 from pandastim.stimuli import stimulus
+import random
 
+import platform
 
 def pstimWrapper(alignmentPorts):
-    mySavePath = r"E:\Pstim\test_output.txt"
 
+    if (platform.system() == "Windows"):
+        mySavePath = r"E:\Pstim\test_output.txt"
+
+    elif (platform.system() == "Linux"):
+        mySavePath = str(Path(sys.executable)
+        .parents[1]
+        .joinpath(
+            r"lib/python3.12/site-packages/pandastim/outputs/output.txt"
+        )
+        )
     # handles communication from improv
     pstim_comms = {"topic": "stim", "port": "5006", "ip": r"tcp://10.122.170.169:"}
     paramspath = (
@@ -30,22 +41,30 @@ def pstimWrapper(alignmentPorts):
         pstim_comms=pstim_comms,
         alignmentComms=alignmentPorts,
         default_params_path=paramspath,
-        outputMethod="zmq",
+        outputMethod="print",
         savePath=mySavePath,
     )
     # this uses stimulusBuddy to run open loop experiments
-    inputStimuli = pd.read_hdf(
-        Path(sys.executable)
-        .parents[0]
-        .joinpath(r"Lib\site-packages\pandastim\resources\protocols\medial_right.hdf"
-            # r"Lib\site-packages\pandastim\resources\protocols\sevenrep_twentyonestim.hdf" 
+
+
+    if (platform.system() == "Windows"):
+        thispath = r"Lib\site-packages\pandastim\resources\protocols\myhdf.hdf"
+
+    elif (platform.system() == "Linux"):
+        thispath = str(Path(sys.executable)
+        .parents[1]
+        .joinpath(
+            r"lib/python3.12/site-packages/pandastim/resources/protocols/myhdf.hdf"
         )
-    )
+        )
+
+
+    inputStimuli = pd.read_hdf(thispath)
     # can augment your pstim file here in any way you want
     #inputStimuli = inputStimuli.loc[:139]
 
     # set duration and stationary time here
-    stimSequence = utils.legacy2current(inputStimuli, duration=100000, stationary_time=5)
+    stimSequence = utils.legacy2current(inputStimuli, duration=10, stationary_time=0)
     stimBuddy.queue = stimSequence
 
     pstim = stimulus.ExternalStimulus(buddy=stimBuddy, params_path=paramspath)
@@ -69,8 +88,9 @@ def alignmentWrapper(alignmentPort):
 
 
 if __name__ == "__main__":
-
-    alignment_ports = {"wt_output": "5015", "wt_input": "5016"}
+    port1 = random.randint(5020, 10000)
+    port2 = random.randint(5020, 10000)
+    alignment_ports = {"wt_output": f"{port1}", "wt_input": f"{port2}"}
 
     _processes = [pstimWrapper]
     #_processes = [pstimWrapper, alignmentWrapper]

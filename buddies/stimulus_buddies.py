@@ -4,6 +4,8 @@ import threading as tr
 import time
 from datetime import datetime as dt
 from pathlib import Path
+import platform
+
 
 import zmq
 from direct.showbase import DirectObject
@@ -29,7 +31,8 @@ class StimulusBuddy(DirectObject.DirectObject):
         default_params_path=None,
     ):
 
-        if not default_params_path:
+
+        if (platform.system() == "Windows"):
             default_params_path = (
                 Path(sys.executable)
                 .parents[0]
@@ -37,6 +40,18 @@ class StimulusBuddy(DirectObject.DirectObject):
                     r"Lib\site-packages\pandastim\resources\params\default_params.json"
                 )
             )
+        elif (platform.system() == "Linux"):
+            print("Good operating system, m8")
+            print(Path(sys.executable))
+            print(Path(sys.executable).parents[1])
+            default_params_path = (
+                Path(sys.executable)
+                .parents[1]
+                .joinpath(
+                    r"lib/python3.12/site-packages/pandastim/resources/params/default_params.json"
+                )
+            )
+
         with open(default_params_path) as json_file:
             self.default_params = json.load(json_file)
 

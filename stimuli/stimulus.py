@@ -27,7 +27,9 @@ from panda3d.core import (CardMaker, ClockObject, ColorBlendAttrib,
 from pandastim import utils
 from pandastim.stimuli import stimulus_details
 
+import platform
 
+import logging
 class StimulusSequencing(ShowBase):
     """
     this is the base class for chaining multiple stimuli together
@@ -47,6 +49,25 @@ class StimulusSequencing(ShowBase):
         self.buddy = buddy
         if self.buddy:
             self.taskMgr.add(self.buddy_task, "buddy")
+
+
+
+        if (platform.system() == "Windows"):
+            params_path = (
+                Path(sys.executable)
+                .parents[0]
+                .joinpath(
+                    r"Lib\site-packages\pandastim\resources\params\default_params.json"
+                )
+            )
+        elif (platform.system() == "Linux"):
+            params_path = (
+                Path(sys.executable)
+                .parents[1]
+                .joinpath(
+                    r"lib/python3.12/site-packages/pandastim/resources/params/default_params.json"
+                )
+            )
 
         self.load_params(params_path)
         self.format_window()
@@ -391,17 +412,17 @@ class StimulusSequencing(ShowBase):
                     self.default_params = json.load(json_file)
             else:
                 self.default_params = None
-                logging.error("no default parameters found")
+                #logging.error("no default parameters found")
         else:
             if os.path.exists(params_path):
                 with open(params_path) as json_file:
                     self.default_params = json.load(json_file)
             else:
                 self.default_params = None
-                logging.error("no default parameters found")
+                #logging.error("no default parameters found")
 
         if not self.default_params:
-            self.logging.info("initializing non-loaded params")
+            #self.logging.info("initializing non-loaded params")
             self.default_params = {
                 "rotation_offset": -90,
                 "window_size": [1024, 1024],

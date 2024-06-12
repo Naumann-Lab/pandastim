@@ -85,7 +85,7 @@ def saving(file_path: str, append=False, *other_info) -> object:
 
         file_path = newpath
     print(f"Saving data to {file_path}")
-    filestream = open(file_path, "a")
+    filestream = open(file_path, 'a')
 
     info = [str(i) for i in other_info]
     info = "_".join(info)
