@@ -159,7 +159,7 @@ def createTexture(input_tex_dict: dict):
 
 
 def legacy2current(
-    stim_df, tex="grating_gray", frequency=32, duration=15, stationary_time=10
+    stim_df, tex="grating_rgb", frequency=32, duration=15, stationary_time=10
 ):
     import inspect
 
