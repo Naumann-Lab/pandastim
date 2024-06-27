@@ -48,7 +48,7 @@ def pstimWrapper(alignmentPorts):
 
 
     if (platform.system() == "Windows"):
-        thispath = r"Lib\site-packages\pandastim\resources\protocols\myhdf.hdf"
+        thispath = r"C:\Users\User\anaconda3\envs\pstim\Lib\site-packages\pandastim\resources\protocols\myhdf.hdf"
 
     elif (platform.system() == "Linux"):
         thispath = str(Path(sys.executable)
