@@ -342,9 +342,10 @@ class CalibrationTriangles(TextureBase):
 
     def __init__(
         self,
+        texture_size = (1024, 1024),
         tri_size=50,
         circle_radius=7,
-        x_offset=0,
+        x_offset=500,
         y_offset=0,
         texture_name="circs",
         *args,
@@ -354,7 +355,7 @@ class CalibrationTriangles(TextureBase):
         self.x_offset = x_offset
         self.y_offset = y_offset
         self.circle_radius = circle_radius
-        super().__init__(texture_name=texture_name, *args, **kwargs)
+        super().__init__(texture_size = texture_size, texture_name =texture_name)
 
     def create_texture(self) -> np.array:
         self.midx = self.texture_size[0] // 2
@@ -393,11 +394,11 @@ class CalibrationTriangles(TextureBase):
 
 class RadialSinCube(TextureBase):
     def __init__(
-        self, phase=0, period=32, texture_name="radial_sin_centering", *args, **kwargs
+        self, texture_size=(1024,1024), phase=0, period=32, texture_name="radial_sin_centering", *args, **kwargs
     ):
         self.phase = phase
         self.period = period
-        super().__init__(texture_name=texture_name, *args, **kwargs)
+        super().__init__(texture_size=texture_size, texture_name=texture_name, *args, **kwargs)
 
     def create_texture(self) -> np.array:
         x = np.linspace(-self.period * np.pi, self.period * np.pi, self.texture_size[0])

@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from direct.gui.OnscreenText import OnscreenText  # for binocular stim
 from direct.showbase import ShowBaseGlobal
 from direct.showbase.ShowBase import ShowBase
@@ -25,7 +26,7 @@ from panda3d.core import (CardMaker, ClockObject, ColorBlendAttrib,
                           WindowProperties)
 
 from pandastim import utils
-from pandastim.stimuli import stimulus_details
+from pandastim.stimuli import stimulus_details, textures
 
 
 class StimulusSequencing(ShowBase):
@@ -38,14 +39,16 @@ class StimulusSequencing(ShowBase):
 
     """
 
-    def __init__(self, stimuli=None, params_path="default", buddy=None):
+    def __init__(self, stimuli=None, params_path="default", buddy=None, buddy_port = None):
         super().__init__()
 
         self.stimuli = stimuli
+        self.textures = {}
 
         # if we have a stimbuddy start a task running
         self.buddy = buddy
         if self.buddy:
+            self.buddy_stimulus_sub = utils.Subscriber(buddy_port)
             self.taskMgr.add(self.buddy_task, "buddy")
 
         self.load_params(params_path)
@@ -80,7 +83,6 @@ class StimulusSequencing(ShowBase):
         self.card = self.aspect2d.attachNewNode(cardmaker.generate())
         self.card.setScale(self.scale)
         self.card.setColor((1, 1, 1, 1))
-
         self.card.setTexture(self.texture_stage, self.current_stimulus.texture.texture)
 
         # set tex transforms
@@ -88,6 +90,7 @@ class StimulusSequencing(ShowBase):
             self.texture_stage,
             self.current_stimulus.angle + self.default_params["rotation_offset"],
         )
+        print(self.center_x, self.center_y)
         self.card.setTexPos(self.texture_stage, self.center_x, self.center_y, 0)
         self.taskMgr.add(self.move_monocular, "move_monocular")
 
@@ -314,7 +317,6 @@ class StimulusSequencing(ShowBase):
         trs = translate-rotate-scale transform for mask stage
         panda3d developer rdb contributed to this code
         """
-
         ## highly recommend not monkeying with this too much
         # print([self.center_x, self.center_y], [self.bin_center_x, self.bin_center_y])
         self.bin_center_x = 1 * self.center_y * self.scale
@@ -490,7 +492,6 @@ class SequencingWithPause(StimulusSequencing):
 
         self.paused = False
         self.set_stimulus()
-
         self.accept("pause", self.pause)
         self.accept("unpause", self.unpause)
 
@@ -556,6 +557,80 @@ class ExternalStimulus(SequencingWithPause):
             self.current_stimulus = self.next_stimulus
             self.set_stimulus()
             self.next_stimulus = None
+
+        return buddytask.cont
+
+
+class BehaviorStimulus(SequencingWithPause):
+    """
+    this one works with free swimming behavior on a behavior rig, also talk to Stytra via a Stytrabuddy
+    """
+
+    def __init__(self, rad_stack, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.curr_id = 0
+        self.next_stimulus = None
+        self.rad_stack = rad_stack
+
+    def run_centering(self):
+        self.radial_index = 0
+        self.center_x = self.cali_pos[0]
+        self.center_y = self.cali_pos[1]
+        self.taskMgr.add(self.run_radial, "run_radial")
+
+    def run_radial(self, radial_task):
+        super().clear_cards()
+        self.current_stimulus = stimulus_details.MonocularStimulusDetails(texture = self.rad_stack[self.radial_index])
+        #self.current_stimulus = self.rad_stack[self.radial_index]
+        self.radial_index += 1
+        if self.radial_index == len(self.rad_stack):#loop around rad stack forever
+            self.radial_index = 0
+        self.set_stimulus()
+        return radial_task.cont
+
+    def update_stimulus(self):
+        if self.current_stimulus is not None:
+            if len(self.updating_info) == 1:
+                # this is theta
+                self.angle_rotation= self.updating_info[0]
+                self.set_transforms()
+            elif len(self.updating_info) == 2:
+                # this is X, Y
+                self.center_x, self.center_y = self.updating_info
+                self.set_transforms()
+            elif len(self.updating_info) == 3:
+                # this is X, Y, Theta
+                self.center_x, self.center_y, self.angle_rotatio = self.updating_info
+                self.set_transforms()
+
+    def clear_cards(self):
+        self.taskMgr.remove("run_radial")
+        super().clear_cards()
+
+    def buddy_task(self, buddytask):
+        """talk to a stytrabuddy about what task the buddy should do"""
+        self.buddy.pauseStatus(self.paused)
+        self.buddy.position(self.new_position)
+        self.buddy.stimulus(self.current_stimulus)
+        self.centering, self.cali_pos = self.buddy.request_centering()#cali pos only used for centering for now
+        self.updating, self.updating_info = self.buddy.request_updating()
+        self.next_stimulus = self.buddy.request_stimulus()#request next stimulus from buddy
+        if self.next_stimulus is not None:#if there is a stimulus change
+            if isinstance(self.next_stimulus, stimulus_details.MonocularStimulusDetails)\
+                    or isinstance(self.next_stimulus, stimulus_details.BinocularStimulusDetails):#handles input of stimulus object
+                self.clear_cards()
+                self.current_stimulus = self.next_stimulus
+                self.next_stimulus = None
+                self.set_stimulus()
+            else:
+                print('stim input to stimulus.py has to be an object belong to stimulus_details class')
+        elif self.centering:
+            self.clear_cards()
+            self.run_centering()
+            self.buddy.set_centering(None)#turn off set set centering because while there's a task going on, the buddy wouldn't refresh
+        elif self.updating:
+            self.update_stimulus()
+        self.buddy.broadcaster()#slight delay of one round in reporting new stimulus because we have to wait till buddy is updated faster
 
         return buddytask.cont
 
