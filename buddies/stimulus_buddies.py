@@ -133,7 +133,7 @@ class StimulusBuddy(DirectObject.DirectObject):
                     else:
                         self.output(f"motionOn: {self._stimulus}")
                     self._lastmessage = msg
-                if msg[1]:#if stim change == True
+                if self._lastmessage[1] != msg[1]:
                     if self._stimulus is not None:
                         self.output(f"stimChange: {self._stimulus.return_dict()}")
                     else:
@@ -278,9 +278,7 @@ class StytraBuddy(StimulusBuddy):
         self.updating = False  # assuming not updating
         while self._running:
             topic = self.protocol_buddy_sub.socket.recv_string()
-            print(topic)
             data = self.protocol_buddy_sub.socket.recv_pyobj()
-            print(topic, data)
             match topic:
                 case "calibration_stimulus":#when receiving calibration stimulus
                     if data:#if data is True, make calibration signal the first stimulus
@@ -303,20 +301,24 @@ class StytraBuddy(StimulusBuddy):
                 case "centering":
                     self.set_centering(data) #start centering
                 case "stimulus":
-                    if isinstance(data, pd.DataFrame):
-                        data = utils.legacy2current_singlestim(data)
-                    elif isinstance(data, list):
-                        data = utils.legacy2current_singlestim(data[0], tex = data[1])
+                    data = stimulus_details.legacy2current_singlestim(data,
+                                                           light_value = self.default_params['light_value'],
+                                                           dark_value=self.default_params['dark_value'],
+                                                           frequency = self.default_params['frequency'],
+                                                           texture_size=self.default_params['window_size'])
                     self.append_queue(data)
                 case "clickstim":
-                    center_stimulus = stimulus_details.MonocularStimulusDetails(stim_name='centerclick',
-                                                                                texture=textures.CircleGrayTex(
-                                                                                    circle_radius=50,
-                                                                                    texture_size=self.default_params[
-                                                                                        'window_size']))
+                    center_stimulus = stimulus_details.MonocularStimulusDetails(
+                        stim_name='centerclick',
+                        texture=textures.CircleGrayTex(circle_radius=50,texture_size=self.default_params['window_size']))
                     self.append_queue(center_stimulus)
                 case "stimulus_update":
                     self.set_updating(data)
+
+                case _:
+                    print(
+                        f"{topic} --  not understood,  failed"
+                    )
 
 
 class AligningStimBuddy(StimulusBuddy):
