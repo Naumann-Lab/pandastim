@@ -360,7 +360,6 @@ class CalibrationTriangles(TextureBase):
     def create_texture(self) -> np.array:
         self.midx = self.texture_size[0] // 2
         self.midy = self.texture_size[1] // 2
-
         self.pt1 = (
             int((self.midx + self.x_offset - (self.tri_size * math.sqrt(3)) // 2)),
             int((self.midy + self.y_offset + self.tri_size // 2)),
@@ -375,14 +374,12 @@ class CalibrationTriangles(TextureBase):
             int((self.midx + self.x_offset - (self.tri_size * math.sqrt(3)) // 2)),
             int((self.midy + self.y_offset - self.tri_size // 2)),
         )
-
         circle_texture = np.zeros((self.texture_size[1], self.texture_size[0]))
 
         [
             cv2.circle(circle_texture, i, self.circle_radius, 255, -1)
             for i in [self.pt1, self.pt2, self.pt3]
         ]
-
         return np.uint8(circle_texture)
 
     def __str__(self) -> str:

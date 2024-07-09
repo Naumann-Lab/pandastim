@@ -260,7 +260,7 @@ def monocular2binocular(
     return BinocularStimulusDetails(**new_stim_dict)
 
 
-def legacy2current(stim_df, tex="grating_gray", duration=15, stationary_time=10):
+def legacy2current(stim_df, tex="grating_gray", duration=15, stationary_time=10):#trasnferred to utils...
     import inspect
 
     texDict = {"texture_name": "grating_gray", "frequency": 48}
@@ -292,3 +292,41 @@ def legacy2current(stim_df, tex="grating_gray", duration=15, stationary_time=10)
 
         stimSequence.append(stimulus)
     return stimSequence
+
+def legacy2current_singlestim(
+    stim_df, tex="grating_gray", frequency=32, duration=15, stationary_time=10, texture_size = 1024,
+    dark_value = 0, light_value = 255):
+    """for a single stimuli. legacy: dataframe format; current: stimulus_details format"""
+    import inspect
+
+    from pandastim.stimuli.stimulus_details import (BinocularStimulusDetails,
+                                                    MonocularStimulusDetails)
+
+    texDict = {"texture_name": tex, "frequency": frequency, "texture_size": texture_size,
+               "light_value": light_value, "dark_value": dark_value}
+    createdTexture = utils.createTexture(texDict)
+    createdTextures = (createdTexture, createdTexture)
+
+    stimDict = dict(stim_df)
+    if hasattr(stimDict["angle"], "__iter__"):
+        detail_dict = {
+                k: v
+                for k, v in stimDict.items()
+                if k in list(inspect.signature(BinocularStimulusDetails).parameters)
+            }
+
+        detail_dict["duration"] = (duration, duration)
+        detail_dict["stationary_time"] = (stationary_time, stationary_time)
+        stimulus = BinocularStimulusDetails(texture=createdTextures, **detail_dict)
+    else:
+        stimDict["velocity"] = float(stimDict["velocity"])
+        detail_dict = {
+                k: v
+                for k, v in stimDict.items()
+                if k in list(inspect.signature(MonocularStimulusDetails).parameters)
+            }
+        detail_dict["duration"] = duration
+        detail_dict["stationary_time"] = stationary_time
+        stimulus = MonocularStimulusDetails(texture=createdTexture, **detail_dict)
+
+    return stimulus
