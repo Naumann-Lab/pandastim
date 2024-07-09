@@ -22,6 +22,7 @@ class StimulusCalibrator:
 
         self.camera_img = camera_img - 3
         self.projected_pts = self.get_proj_pts()
+        print(f'HI{self.projected_pts}')
         self.projected_pts = self.projected_pts[np.argsort(self._find_angles(self.projected_pts)), :]
         self.camera_pts = self._find_triangle(self.camera_img)
 
@@ -33,8 +34,9 @@ class StimulusCalibrator:
         else:
             return textures.CalibrationTriangles(tri_size=cali_params['tri_size'],
                                                 circle_radius=cali_params['circle_radius'],
-                                                x_off=cali_params['x_off'],
-                                                y_off=cali_params['y_off']).projct_coords()
+                                                x_offset=cali_params['x_off'],
+                                                y_offset=cali_params['y_off']).projct_coords()
+
 
     def transforms(self):
         x_proj = np.vstack([self.projected_pts.T, np.ones(3)])
@@ -98,6 +100,7 @@ def load_params(rig_number):
     parent_path = Path(sys.executable).parents[0].joinpath(r'Lib\site-packages\pandastim\resources\params')
     proj2cam = np.load(parent_path.joinpath(f'rig_{rig_number}_proj2cam.npy'))
     cam2proj = np.load(parent_path.joinpath(f'rig_{rig_number}_cam2proj.npy'))
+    print(f"loading from: {parent_path.joinpath(f'rig_{rig_number}_cam2proj.npy')}")
     return proj2cam, cam2proj
 
 

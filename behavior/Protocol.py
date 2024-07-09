@@ -160,10 +160,11 @@ class BaseProtocol(DirectObject.DirectObject):
                     # we drew something max val on an image that contained no max vals, now we grab it
                     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(image)
                     self.centered_pt = np.array([max_loc[0], max_loc[1]])
+                    # print(self.centered_pt)
                     #pos = (self.centered_pt[0], self.centered_pt[0])
                     self.proj2cam, self.cam2proj = calibration.load_params(self.rig_number)
-                    print(f'PROJ2CAM {self.proj2cam}')
-                    print(f'CAM2PROJ {self.cam2proj}')
+                    # print(f'PROJ2CAM {self.proj2cam}')
+                    # print(f'CAM2PROJ {self.cam2proj}')
                     try:
                         print(f'raw: {self.centered_pt} texture:  {cv2.transform(np.reshape(self.centered_pt, (1, 1, 2)), self.cam2proj)[0][0]} card: {self.position_transformer(self.centered_pt[0], self.centered_pt[1])}')
                     except Exception as e:
