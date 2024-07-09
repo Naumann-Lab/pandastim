@@ -1,6 +1,6 @@
-import stimuli.stimulus_details
+#import stimuli.stimulus_details
 from pandastim.utils import port_provider, load_params,legacy2current
-from pandastim.stimuli import stimulus
+from pandastim.stimuli import stimulus, stimulus_details
 from pandastim.behavior.Protocol import  ClosedLoopProtocol, CenterClickTestingProtocol
 from pandastim.behavior.Tracking import stytra_container
 from pandastim.buddies.stimulus_buddies import StimulusBuddy, StytraBuddy
@@ -27,9 +27,11 @@ def wrapper(protocol, stimulus_dataframe_path, ports, params, parameter_path):
 
     import pandas as pd
     stimulus_dataframe = pd.read_hdf(stimulus_dataframe_path)
-    inds = stimulus_dataframe[stimulus_dataframe.stim_type=='s'].index
-    stimulus_dataframe.loc[inds, 'angle'] += params['rotation_offset']
+    #inds = stimulus_dataframe[stimulus_dataframe.stim_type=='s'].index
+    #stimulus_dataframe = stimulus_dataframe[stimulus_dataframe.stim_type=='b']
+    #stimulus_dataframe.loc[inds, 'angle'] += params['rotation_offset']
     rad_stack = utils.create_radial_sin(texture_size=1024)
+    #rad_stack = None
     stytraBuddy = StytraBuddy(comms = ports,
                              params_path =parameter_path,
                               protocol = protocol,
@@ -56,6 +58,8 @@ if __name__ == '__main__':
 
         stytra_process = mp.Process(target=stytra_container, args=(_ports, camera_rot, roi, savedir,))
         stimulus_process = mp.Process(target=wrapper, args=(ClosedLoopProtocol, stimulus_path, _ports, params, parameter_path))
+        # stimulus_process = mp.Process(target=wrapper, args=(CenterClickTestingProtocol, stimulus_path, _ports, params, parameter_path))
+
 
         stimulus_process.start()
         stytra_process.start()
