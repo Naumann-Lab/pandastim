@@ -79,10 +79,10 @@ class StimulusBuddy(DirectObject.DirectObject):
         self.receipts = receipts
         self.queue = []
 
-        if comms['stimulus_buddy_socket']:
-            self.subscriber = utils.Subscriber(comms['stimulus_buddy_socket'])
-            self.run_sub = tr.Thread(target=self.input)
-            self.run_sub.start()
+        #if pstim_comms:
+        #    self.subscriber = utils.Subscriber(**pstim_comms)
+        #    self.run_sub = tr.Thread(target=self.input)
+        #    self.run_sub.start()
 
     def pauseStatus(self, pause_status):
         if pause_status and not self._pauseStatus:
