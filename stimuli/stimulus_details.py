@@ -229,6 +229,70 @@ class BinocularStimulusDetails(StimulusDetails):
         return {"stimulus": stim_dict, "texture": [tex0_dict, tex1_dict]}
 
 
+@dataclass(frozen=True)
+class MaskedStimulusDetails(StimulusDetails):
+    """
+    Contains details about a given stimulus that can be layered
+    """
+
+    from pandastim.stimuli import textures
+
+    # required
+    angle: int = 0
+    velocity: float = 0.0
+
+    # defaults
+    stationary_time: int = 0
+    duration: int = -1   # defaults to going forever
+    hold_after: float = np.nan
+    strip_width: int = 8
+    position: tuple = (0, 0)
+    masking: tuple = (0,0,0,0) # what of axis to mask, xmin, xmax, ymin, ymax, this default is wholefield
+    transparency: float = 1.
+    texture: textures.TextureBase = textures.GratingGrayTex()
+
+    stim_name: str = f"masked-stimulus_{velocity}_{angle}"
+
+    master = {
+        "stim_name": str,
+        "angle": int,
+        "velocity": float,
+        "stationary_time": int,
+        "hold_after": float,
+        "duration": int,
+        "position": tuple,
+        "texture": textures.TextureBase,
+        "masking": tuple,
+        "transparency" : float
+    }
+
+    def __post_init__(self):
+        """Because python isn't static lets force things here"""
+        if self.master:
+            for k, v in self.master.items():
+                assert k in self.__dict__.keys(), f"must provide {k}"
+                assert isinstance(getattr(self, k), v), f"{k} must be type: {v}"
+
+    def return_dict(self):
+        tex_dict = utils.unpack_tex(self.texture)
+        stim_dict = vars(self).copy()
+        stim_dict.pop("texture")
+        return {"stimulus": stim_dict, "texture": tex_dict}
+
+
+@dataclass(frozen=True)
+class MaskedStimulusDetailsPack(StimulusDetails):
+    masked_stim_details: tuple = ()
+
+    def return_dict(self):
+        outDict = {}
+        for n, masked_stim_deets in enumerate(self.masked_stim_details):
+            tex_dict = utils.unpack_tex(masked_stim_deets.texture)
+            stim_dict = vars(masked_stim_deets).copy()
+            stim_dict.pop("texture")
+            outDict[n] =  {"stimulus": stim_dict, "texture": tex_dict}
+
+
 def monocular2binocular(
     monoc1: MonocularStimulusDetails,
     monoc2: MonocularStimulusDetails,

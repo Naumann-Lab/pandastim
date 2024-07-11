@@ -21,7 +21,7 @@ from direct.gui.OnscreenText import OnscreenText  # for binocular stim
 from direct.showbase import ShowBaseGlobal
 from direct.showbase.ShowBase import ShowBase
 from direct.task import Task
-from panda3d.core import (CardMaker, ClockObject, ColorBlendAttrib,
+from panda3d.core import (CardMaker, ClockObject, ColorBlendAttrib, TransparencyAttrib,
                           PStatClient, Texture, TextureStage, TransformState,
                           WindowProperties)
 
@@ -48,7 +48,6 @@ class StimulusSequencing(ShowBase):
         # if we have a stimbuddy start a task running
         self.buddy = buddy
         if self.buddy:
-            self.buddy_stimulus_sub = utils.Subscriber(buddy_port)
             self.taskMgr.add(self.buddy_task, "buddy")
 
         self.load_params(params_path)
@@ -67,6 +66,8 @@ class StimulusSequencing(ShowBase):
                 self.set_binocular()
             case None:
                 pass
+            case stimulus_details.MaskedStimulusDetailsPack():
+                self.set_masked()
             case _:
                 print(
                     f"{self.current_stimulus.__class__} -- Stimulus type not understood"
@@ -293,6 +294,117 @@ class StimulusSequencing(ShowBase):
             return move_binocular_task.done
 
         return move_binocular_task.cont
+
+    def set_masked(self):
+        self.masked_stims = {}
+        for n, masked_stim in enumerate(self.current_stimulus.masked_stim_details):
+            x = masked_stim.position[0]
+            y = masked_stim.position[1]
+
+            ## CREATE TEXTURE STAGES ##
+            tex_size = masked_stim.texture.texture_size
+            tex = masked_stim.texture.texture
+
+            texture_stage = TextureStage(f"texture_stage_{n}")
+            mask = Texture(f"mask_texture_{n}")
+            mask.setup2dTexture(
+                tex_size[0], tex_size[1], Texture.T_unsigned_byte, Texture.F_luminance
+            )
+            mask_stage = TextureStage(f"mask_array_{n}")
+
+            ## CREATE CARDS ###
+            cardmaker = CardMaker("stimcard")
+            cardmaker.setFrameFullscreenQuad()
+            self.setBackgroundColor((0, 0, 0, 1))
+            card = self.aspect2d.attachNewNode(cardmaker.generate())
+
+            # card.setAttrib(ColorBlendAttrib.make(ColorBlendAttrib.M_add))
+            card.setAttrib(
+                ColorBlendAttrib.make(ColorBlendAttrib.MAdd, ColorBlendAttrib.OIncomingAlpha, ColorBlendAttrib.OOne))
+            ## CREATE MASK ARRAYS ##
+            mask_array = 255 * np.ones(
+                (tex_size[0], tex_size[1]), dtype=np.uint8
+            )
+            xMaskMin = int(tex_size[0] * masked_stim.masking[0])
+            xMaskMax = int(tex_size[0] * masked_stim.masking[1])
+            yMaskMin = int(tex_size[1] * masked_stim.masking[2])
+            yMaskMax = int(tex_size[1] * masked_stim.masking[3])
+            mask_array[xMaskMin:xMaskMax, yMaskMin:yMaskMax] = 0
+
+            ## ADD TEXTURE STAGES TO CARDS ##
+            mask.setRamImage(mask_array)
+            card.setTexture(texture_stage, tex)
+
+            ## Multiply the texture stages together ##
+            mask_stage.setCombineRgb(
+                TextureStage.CMModulate,
+                TextureStage.CSTexture,
+                TextureStage.COSrcColor,
+                TextureStage.CSPrevious,
+                TextureStage.COSrcColor,
+            )
+
+            card.setTexture(mask_stage, mask)
+
+            card.setTransparency(TransparencyAttrib.MAlpha)
+            card.setAlphaScale(masked_stim.transparency)
+
+            ### Do the transform things ###
+            card.setTexRotate(
+                texture_stage,
+                masked_stim.angle + self.default_params["rotation_offset"],
+            )
+            card.setTexPos(texture_stage, x, y, 0)
+            self.masked_stims[n] = {"card": card,
+                                    "texture_stage": texture_stage,
+                                    "x": x,
+                                    "y": y,
+                                    "finished": False}
+
+        self.taskMgr.add(self.move_masks, "move_masks")
+
+    def move_masks(self, move_mask_task):
+        finisheds = 0
+        for masked_stim in self.masked_stims.values():
+            if masked_stim["finished"] is True:
+                finisheds += 1
+        if finisheds == len(self.current_stimulus.masked_stim_details):
+            self.clear_cards()
+            return move_mask_task.done
+
+        for n, masked_stim in enumerate(self.current_stimulus.masked_stim_details):
+            card = self.masked_stims[n]['card']
+            texture_stage = self.masked_stims[n]['texture_stage']
+            xPos = self.masked_stims[n]["x"]
+            yPos = self.masked_stims[n]["y"]
+
+            # print(move_mask_task.time, masked_stim.hold_after)
+            if move_mask_task.time <= masked_stim.stationary_time:
+                pass
+            elif move_mask_task.time >= masked_stim.duration != -1:
+                if self.default_params["hold_onfinish"]:
+                    if move_mask_task.time >= masked_stim.hold_after + masked_stim.duration:
+                        card.detach_node()
+                        self.masked_stims[n]['finished'] = True
+                    if np.isnan(masked_stim.hold_after):
+                        card.detach_node()
+                        self.masked_stims[n]['finished'] = True
+                else:
+                    card.detach_node()
+                    self.masked_stims[n]['finished'] = True
+
+            else:
+                new_position = (
+                        -move_mask_task.time * masked_stim.velocity
+                )
+                card.setTexPos(
+                    texture_stage,
+                    new_position + xPos,
+                    yPos,
+                    0,
+                )  # u, v, w
+
+        return move_mask_task.cont
 
     def clear_cards(self):
         try:
