@@ -16,6 +16,8 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import math
+from datetime import datetime as dt
 import pandas as pd
 from direct.gui.OnscreenText import OnscreenText  # for binocular stim
 from direct.showbase import ShowBaseGlobal
@@ -64,10 +66,10 @@ class StimulusSequencing(ShowBase):
                 self.set_monocular()
             case stimulus_details.BinocularStimulusDetails():
                 self.set_binocular()
-            case None:
-                pass
             case stimulus_details.MaskedStimulusDetailsPack():
                 self.set_masked()
+            case None:
+                pass
             case _:
                 print(
                     f"{self.current_stimulus.__class__} -- Stimulus type not understood"
@@ -91,7 +93,6 @@ class StimulusSequencing(ShowBase):
             self.texture_stage,
             self.current_stimulus.angle + self.default_params["rotation_offset"],
         )
-
         self.card.setTexPos(self.texture_stage, self.center_x, self.center_y, 0)
         self.taskMgr.add(self.move_monocular, "move_monocular")
 
@@ -317,6 +318,7 @@ class StimulusSequencing(ShowBase):
             cardmaker.setFrameFullscreenQuad()
             self.setBackgroundColor((0, 0, 0, 1))
             card = self.aspect2d.attachNewNode(cardmaker.generate())
+            card.setScale(self.scale)
 
             # card.setAttrib(ColorBlendAttrib.make(ColorBlendAttrib.M_add))
             card.setAttrib(
@@ -360,15 +362,20 @@ class StimulusSequencing(ShowBase):
                                     "x": x,
                                     "y": y,
                                     "finished": False}
-
         self.taskMgr.add(self.move_masks, "move_masks")
 
     def move_masks(self, move_mask_task):
+        #to account for the time difference between protocol sending stimuli and moving mask, if a different
+        #stim got send, end this immediately
+        # if type(self.current_stimulus) != stimulus_details.MaskedStimulusDetailsPack:
+        #     #get previous cards from the previous mask stims
+        #     return move_mask_task.done
+
         finisheds = 0
         for masked_stim in self.masked_stims.values():
-            if masked_stim["finished"] is True:
+            if masked_stim["finished"] == True:
                 finisheds += 1
-        if finisheds == len(self.current_stimulus.masked_stim_details):
+        if finisheds == len(self.masked_stims):
             self.clear_cards()
             return move_mask_task.done
 
@@ -378,7 +385,6 @@ class StimulusSequencing(ShowBase):
             xPos = self.masked_stims[n]["x"]
             yPos = self.masked_stims[n]["y"]
 
-            # print(move_mask_task.time, masked_stim.hold_after)
             if move_mask_task.time <= masked_stim.stationary_time:
                 pass
             elif move_mask_task.time >= masked_stim.duration != -1:
@@ -419,9 +425,14 @@ class StimulusSequencing(ShowBase):
             self.right_card.detach_node()
         except:
             pass
-
+        try:
+            for n, masked_stim in enumerate(self.current_stimulus.masked_stim_details):
+                self.masked_stims[n]['card'].detach_node()
+        except:
+            pass
         self.taskMgr.remove("move_monocular")
         self.taskMgr.remove("move_binocular")
+        self.taskMgr.remove("move_masks")
         self.current_stimulus = None
 
     def trs_transform(self):
@@ -609,7 +620,6 @@ class SequencingWithPause(StimulusSequencing):
         # match stimulus to stimulus details type
         if not self.paused:
             super().set_stimulus()
-            # print(self._print_counter)
             self._print_counter += 1
         else:
             self.buddy.proceed_alignment()
@@ -690,13 +700,56 @@ class BehaviorStimulus(SequencingWithPause):
 
     def run_radial(self, radial_task):
         super().clear_cards()
-
         self.current_stimulus = self.rad_stack[self.radial_index]
         self.radial_index += 1
         if self.radial_index == len(self.rad_stack):#loop around rad stack forever
             self.radial_index = 0
+        self.center_x = self.cali_pos[0]#always refresh center_x and y in case the coordinates get updated
+        self.center_y = self.cali_pos[1]
         self.set_stimulus()
         return radial_task.cont
+
+    def set_monocular(self):
+        # cardmaker = CardMaker("stimcard")
+        # cardmaker.setFrameFullscreenQuad()
+        #
+        # # create tex stage
+        # self.texture_stage = TextureStage("texture_stage")
+        #
+        # # create card
+        # self.card = self.aspect2d.attachNewNode(cardmaker.generate())
+        # self.card.setScale(self.scale)
+        # self.card.setColor((1, 1, 1, 1))
+        # self.card.setTexture(self.texture_stage, self.current_stimulus.texture.texture)
+        # #MATT OG WORKING CODES
+        # self.card.setTexRotate(
+        #    self.texture_stage,
+        #    self.current_stimulus.angle + self.default_params["rotation_offset"],
+        # )
+        # self.card.setTexPos(self.texture_stage, self.center_x, self.center_y, 0)
+
+        #PLAYGROUND
+        tex = self.current_stimulus.texture.texture
+
+        ## CREATE TEXTURE STAGES ##
+        self.texture_stage = TextureStage("texture_stage")
+
+        ## CREATE CARDS ###
+        cardmaker = CardMaker("stimcard")
+        cardmaker.setFrameFullscreenQuad()
+
+        self.setBackgroundColor((0, 0, 0, 0))
+        self.card = self.aspect2d.attachNewNode(cardmaker.generate())
+        self.card.setAttrib(ColorBlendAttrib.make(ColorBlendAttrib.M_add))
+
+        # ADD TEXTURE STAGES TO CARDS
+        self.card.setTexture(self.texture_stage, tex)
+
+        ### Do the transform things ###
+        self.stage_transform = self.trs_transform_mono(self.current_stimulus.angle)
+        self.card.setTexTransform(self.texture_stage, self.stage_transform)
+
+        self.taskMgr.add(self.move_monocular, "move_monocular")
 
     def move_monocular(self, move_monocular_task):
         if move_monocular_task.time <= self.current_stimulus.stationary_time:
@@ -712,19 +765,20 @@ class BehaviorStimulus(SequencingWithPause):
         ):
             pass
         else:#finally moving monucular
+            #MATT CODE THAT WORKS
             self.new_position = (
-                move_monocular_task.time# reset the move_monucular so it moves to the opposite direction as the original
+                move_monocular_task.time - self.current_stimulus.stationary_time
             ) * self.current_stimulus.velocity
-            self.card.setTexPos(
-                self.texture_stage, self.new_position + self.center_x, self.center_y, 0
-            )  # u, v, w
+            self.stage_transform = self.trs_transform_mono(self.current_stimulus.angle, self.new_position)
+            self.card.setTexTransform(
+                self.texture_stage, self.stage_transform
+            )
+            # self.card.setTexPos(
+            #     self.texture_stage, self.new_position + self.center_x, self.center_y, 0
+            # )  # u, v, w
         return move_monocular_task.cont
 
     def set_binocular(self):
-
-        self.center_x = self.current_stimulus.position[0]
-        self.center_y = self.current_stimulus.position[1]
-
         tex_1_size = self.current_stimulus.texture[0].texture_size
         tex_2_size = self.current_stimulus.texture[1].texture_size
         tex_1 = self.current_stimulus.texture[0].texture
@@ -814,12 +868,12 @@ class BehaviorStimulus(SequencingWithPause):
 
         self.left_angle = (
             self.current_stimulus.strip_angle
-            + self.current_stimulus.angle[0] + 90#because that binocular stim is set up relative to the strip
+            + self.current_stimulus.angle[0]#because that binocular stim is set up relative to the strip
             + self.rotation_offset
         )
         self.right_angle = (
             self.current_stimulus.strip_angle
-            + self.current_stimulus.angle[1] + 90#because that binocular stim is set up relative to the strip
+            + self.current_stimulus.angle[1]#because that binocular stim is set up relative to the strip
             + self.rotation_offset
         )
 
@@ -856,8 +910,8 @@ class BehaviorStimulus(SequencingWithPause):
             new_position_left = (move_binocular_task.time * self.current_stimulus.velocity[0])#remove -time because it works now
             self.left_card.setTexPos(
                 self.left_texture_stage,
-                new_position_left + self.center_x,
-                self.center_y,
+                new_position_left + self.current_stimulus.position[0],
+                self.current_stimulus.position[1],
                 0,
             )  # u, v, w
 
@@ -879,8 +933,8 @@ class BehaviorStimulus(SequencingWithPause):
             new_position_right = (move_binocular_task.time * self.current_stimulus.velocity[1])#remove -time because it works now
             self.right_card.setTexPos(
                 self.right_texture_stage,
-                new_position_right + self.center_x,
-                self.center_y,
+                new_position_right + self.current_stimulus.position[0],
+                self.current_stimulus.position[1],
                 0,
             )  # u, v, w
 
@@ -893,6 +947,130 @@ class BehaviorStimulus(SequencingWithPause):
             return move_binocular_task.done
 
         return move_binocular_task.cont
+
+    def set_masked(self):
+        self.masked_stims = {}
+        for n, masked_stim in enumerate(self.current_stimulus.masked_stim_details):
+            x = masked_stim.position[0]
+            y = masked_stim.position[1]
+
+            ## CREATE TEXTURE STAGES ##
+            tex_size = masked_stim.texture.texture_size
+            tex = masked_stim.texture.texture
+
+            texture_stage = TextureStage(f"texture_stage_{n}")
+            mask = Texture(f"mask_texture_{n}")
+            mask.setup2dTexture(
+                tex_size[0], tex_size[1], Texture.T_unsigned_byte, Texture.F_luminance
+            )
+            mask_stage = TextureStage(f"mask_array_{n}")
+
+            ## CREATE CARDS ###
+            cardmaker = CardMaker("stimcard")
+            cardmaker.setFrameFullscreenQuad()
+            self.setBackgroundColor((0, 0, 0, 1))
+            card = self.aspect2d.attachNewNode(cardmaker.generate())
+            #card.setScale(self.scale)
+
+            # card.setAttrib(ColorBlendAttrib.make(ColorBlendAttrib.M_add))
+            card.setAttrib(
+                ColorBlendAttrib.make(ColorBlendAttrib.MAdd, ColorBlendAttrib.OIncomingAlpha, ColorBlendAttrib.OOne))
+            ## CREATE MASK ARRAYS ##
+            mask_array = 255 * np.ones(
+                (tex_size[0], tex_size[1]), dtype=np.uint8
+            )
+            xMaskMin = int(tex_size[0] * masked_stim.masking[0])
+            xMaskMax = int(tex_size[0] * masked_stim.masking[1])
+            yMaskMin = int(tex_size[1] * masked_stim.masking[2])
+            yMaskMax = int(tex_size[1] * masked_stim.masking[3])
+            mask_array[xMaskMin:xMaskMax, yMaskMin:yMaskMax] = 0
+
+            ## ADD TEXTURE STAGES TO CARDS ##
+            mask.setRamImage(mask_array)
+            card.setTexture(texture_stage, tex)
+
+            ## Multiply the texture stages together ##
+            mask_stage.setCombineRgb(
+                TextureStage.CMModulate,
+                TextureStage.CSTexture,
+                TextureStage.COSrcColor,
+                TextureStage.CSPrevious,
+                TextureStage.COSrcColor,
+            )
+
+            card.setTexture(mask_stage, mask)
+
+            card.setTransparency(TransparencyAttrib.MAlpha)
+            card.setAlphaScale(masked_stim.transparency)
+
+            ### Do the transform things ###
+            stage_transform = self.trs_transform_mono(masked_stim.angle)
+            card.setTexTransform(texture_stage, stage_transform)
+            # card.setTexRotate(
+            #     texture_stage,
+            #     masked_stim.angle + self.default_params["rotation_offset"],
+            # )
+            # card.setTexPos(texture_stage, x, y, 0)
+            self.masked_stims[n] = {"card": card,
+                                    "texture_stage": texture_stage,
+                                    "x": x,
+                                    "y": y,
+                                    "finished": False}
+        self.taskMgr.add(self.move_masks, "move_masks")
+
+    def move_masks(self, move_mask_task):
+        #to account for the time difference between protocol sending stimuli and moving mask, if a different
+        #stim got send, end this immediately
+        # if type(self.current_stimulus) != stimulus_details.MaskedStimulusDetailsPack:
+        #     #get previous cards from the previous mask stims
+        #     return move_mask_task.done
+
+        finisheds = 0
+        for masked_stim in self.masked_stims.values():
+            if masked_stim["finished"] == True:
+                finisheds += 1
+        if finisheds == len(self.masked_stims):
+            self.clear_cards()
+            return move_mask_task.done
+
+        for n, masked_stim in enumerate(self.current_stimulus.masked_stim_details):
+            card = self.masked_stims[n]['card']
+            texture_stage = self.masked_stims[n]['texture_stage']
+            xPos = self.masked_stims[n]["x"]
+            yPos = self.masked_stims[n]["y"]
+
+            if move_mask_task.time <= masked_stim.stationary_time:
+                pass
+            elif move_mask_task.time >= masked_stim.duration != -1:
+                if self.default_params["hold_onfinish"]:
+                    if move_mask_task.time >= masked_stim.hold_after + masked_stim.duration:
+                        card.detach_node()
+                        self.masked_stims[n]['finished'] = True
+                    if np.isnan(masked_stim.hold_after):
+                        card.detach_node()
+                        self.masked_stims[n]['finished'] = True
+                else:
+                    card.detach_node()
+                    self.masked_stims[n]['finished'] = True
+
+            else:
+                new_position = (move_mask_task.time - masked_stim.stationary_time) * masked_stim.velocity
+                stage_transform = self.trs_transform_mono(masked_stim.angle, new_position)
+                card.setTexTransform(
+                    texture_stage, stage_transform
+                )
+                # new_position = (
+                #         -move_mask_task.time * masked_stim.velocity
+                # )
+                # card.setTexPos(
+                #     texture_stage,
+                #     new_position + xPos,
+                #     yPos,
+                #     0,
+                # )  # u, v, w
+
+        return move_mask_task.cont
+
 
     def trs_transform(self):
         """
@@ -913,15 +1091,52 @@ class BehaviorStimulus(SequencingWithPause):
 
         return translate.compose(rotate.compose(scale.compose(center_shift)))
 
+    def trs_transform_mono(self, stimulus_angle, new_position = 0):
+        """
+        trs = translate-rotate-scale transform for mask stage
+        panda3d developer rdb contributed to this code
+        """
+        #calculate new_position in x and y direction
+        angle = math.radians(self.strip_angle + stimulus_angle
+                                              +self.rotation_offset)
+        x_offset = math.sin(angle) * new_position
+        y_offset = math.cos(angle) * new_position
+
+        ## highly recommend not monkeying with this too much
+        self.bin_center_x = 1 * (self.center_y + y_offset) * self.scale
+        self.bin_center_y = -1 * (self.center_x + x_offset) * self.scale
+
+        self.mask_position_uv = (self.bin_center_x, self.bin_center_y)
+
+        pos = 0.5 + self.mask_position_uv[0], 0.5 + self.mask_position_uv[1]
+        center_shift = TransformState.make_pos2d((-pos[0], -pos[1]))
+        scale = TransformState.make_scale2d(1 / self.scale)
+        rotate = TransformState.make_rotate2d(self.strip_angle + stimulus_angle
+                                              +self.rotation_offset)
+        translate = TransformState.make_pos2d((0.5, 0.5))
+
+        return translate.compose(rotate.compose(scale.compose(center_shift)))
+
     def set_transforms(self):
         match self.current_stimulus:
             case stimulus_details.MonocularStimulusDetails():
-                self.card.setTexRotate(
-                    self.texture_stage,
-                    self.current_stimulus.angle + self.angle_rotation,
+                #MATT OG CODE THAT WORKS
+                # self.card.setTexPos(self.texture_stage, self.center_x, self.center_y, 0)
+                # self.card.setTexRotate(self.texture_stage,
+                #    self.current_stimulus.angle
+                #    + self.rotation_offset + 90
+                #    + self.angle_rotation)
+                #PLAYGROUND
+                self.stage_transform = self.trs_transform_mono(self.current_stimulus.angle)
+                self.card.setTexTransform(
+                    self.texture_stage, self.stage_transform
                 )
-                self.card.setTexPos(self.texture_stage, self.center_x, self.center_y, 0)
-
+            case stimulus_details.MaskedStimulusDetailsPack():
+                for n in range(len(self.masked_stims)):
+                    self.stage_transform = self.trs_transform_mono(self.current_stimulus.masked_stim_details[n].angle)
+                    self.masked_stims[n]['card'].setTexTransform(
+                        self.masked_stims[n]['texture_stage'], self.stage_transform
+                    )
             case stimulus_details.BinocularStimulusDetails():
                 self.mask_transform = self.trs_transform()
                 self.left_angle = (
@@ -953,6 +1168,7 @@ class BehaviorStimulus(SequencingWithPause):
                 print(
                     f"{self.current_stimulus.__class__} -- Stimulus type not understood, transform failed"
                 )
+
     def update_stimulus(self):
         if self.current_stimulus is not None:
             if len(self.updating_info) == 1:
@@ -979,12 +1195,13 @@ class BehaviorStimulus(SequencingWithPause):
         self.buddy.pauseStatus(self.paused)
         self.buddy.position(self.new_position)
         self.buddy.stimulus(self.current_stimulus)
-        self.centering, self.cali_pos = self.buddy.request_centering()#cali pos only used for centering for now
         self.updating, self.updating_info = self.buddy.request_updating()
+        self.centering, self.cali_pos = self.buddy.request_centering()#cali pos only used for centering for now
         self.next_stimulus = self.buddy.request_stimulus()#request next stimulus from buddy
         if self.next_stimulus is not None:#if there is a stimulus change
             if isinstance(self.next_stimulus, stimulus_details.MonocularStimulusDetails)\
-                    or isinstance(self.next_stimulus, stimulus_details.BinocularStimulusDetails):#handles input of stimulus object
+                or isinstance(self.next_stimulus, stimulus_details.BinocularStimulusDetails)\
+                or isinstance(self.next_stimulus, stimulus_details.MaskedStimulusDetailsPack):#handles input of stimulus object
                 self.clear_cards()
                 self.current_stimulus = self.next_stimulus
                 self.next_stimulus = None
@@ -993,7 +1210,7 @@ class BehaviorStimulus(SequencingWithPause):
                 print('stim input to stimulus.py has to be an object belong to stimulus_details class')
         elif self.centering:
             self.clear_cards()
-            self.buddy.set_centering(None)  # turn off set set centering because while there's a task going on, the buddy wouldn't refresh
+            self.buddy.set_centering((None, None))  # turn off set set centering because while there's a task going on, the buddy wouldn't refresh
             self.run_centering()
         elif self.updating:
             self.update_stimulus()

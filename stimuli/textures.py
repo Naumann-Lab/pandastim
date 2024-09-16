@@ -70,7 +70,6 @@ class TextureBase(ABC):
                 Texture.F_rgb8,
             )
             self.texture.setRamImageAs(self.texture_array, "RGB")
-
     @abstractmethod
     def create_texture(self) -> None:
         """
@@ -152,14 +151,14 @@ class CircleGrayTex(TextureBase):
     def __init__(
         self,
         circle_center=(0, 0),
-        circle_radius=100,
+        circle_radius=1,
         bg_intensity=0,
         fg_intensity=255,
         texture_name="gray_circle",
         *args,
         **kwargs,
     ):
-        self.circle_center = circle_center
+        self.circle_center = circle_center#circle_center
         self.circle_radius = circle_radius
         self.bg_intensity = bg_intensity
         self.fg_intensity = fg_intensity
@@ -180,9 +179,8 @@ class CircleGrayTex(TextureBase):
         circle_texture = self.bg_intensity * np.ones(
             (self.texture_size[0], self.texture_size[1]), dtype=np.uint8
         )
-        circle_mask = (X - self.circle_center[0]) ** 2 + (
-            Y - self.circle_center[1]
-        ) ** 2 <= self.circle_radius**2
+        circle_mask = (X - self.circle_center[0]) ** 2 + (Y - self.circle_center[1]) ** 2 <= self.circle_radius**2
+
         circle_texture[circle_mask] = self.fg_intensity
         return np.uint8(circle_texture)
 
