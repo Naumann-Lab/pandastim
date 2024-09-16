@@ -258,7 +258,8 @@ class StytraBuddy(StimulusBuddy):
     def set_centering(self, cali_pos):
         """change centering to True so the stimulus will start centering"""
         self.centering = not self.centering
-        self.cali_pos = cali_pos
+        if cali_pos != (None, None):#once cali pos is set, keeping it from being washed away
+            self.cali_pos = cali_pos
 
     def request_centering(self):
         """Let stimulus to request the current centering status"""
@@ -314,10 +315,9 @@ class StytraBuddy(StimulusBuddy):
                     self.append_queue(center_stimulus)
                 case "stimulus_update":
                     self.set_updating(data)
-
                 case _:
                     print(
-                        f"{topic} --  not understood,  failed"
+                        f"{topic} --  not understood, failed"
                     )
 
 
