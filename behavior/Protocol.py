@@ -6,6 +6,7 @@ from pandastim.stimuli import textures, stimulus
 from pandastim.behavior import calibration
 from pandastim.buddies.stimulus_buddies import StimulusBuddy, StytraBuddy
 from pandastim.utils import Publisher, Subscriber
+from datetime import datetime as dt
 
 from math import radians, degrees
 
@@ -160,11 +161,7 @@ class BaseProtocol(DirectObject.DirectObject):
                     # we drew something max val on an image that contained no max vals, now we grab it
                     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(image)
                     self.centered_pt = np.array([max_loc[0], max_loc[1]])
-                    # print(self.centered_pt)
-                    #pos = (self.centered_pt[0], self.centered_pt[0])
                     self.proj2cam, self.cam2proj = calibration.load_params(self.rig_number)
-                    # print(f'PROJ2CAM {self.proj2cam}')
-                    # print(f'CAM2PROJ {self.cam2proj}')
                     try:
                         print(f'raw: {self.centered_pt} texture:  {cv2.transform(np.reshape(self.centered_pt, (1, 1, 2)), self.cam2proj)[0][0]} card: {self.position_transformer(self.centered_pt[0], self.centered_pt[1])}')
                     except Exception as e:
@@ -509,12 +506,11 @@ class ClosedLoopProtocol(BaseProtocol):
 
                     self.stimulating = True
                     self.stim_start = time.time()
-
                 if self.stimulating and time.time() - self.stim_start <= np.max(self.current_stim.duration):
                     # this is where we'll do the updating of xytheta
                     XCHECK = abs(np.nanmean(self._x[-15:]) - self.set_x) >= self.xy_thresh
                     YCHECK = abs(np.nanmean(self._y[-15:]) - self.set_y) >= self.xy_thresh
-                    XYCHECK = (XCHECK or YCHECK) and not self.current_stim.stim_type == 's'
+                    XYCHECK = (XCHECK or YCHECK) #and not self.current_stim.stim_type == 's' #anything but wholefield
 
                     # print(XCHECK, abs(np.nanmean(self._x[-15:]) - self.set_x))
 
