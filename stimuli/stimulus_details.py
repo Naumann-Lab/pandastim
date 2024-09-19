@@ -377,7 +377,8 @@ def legacy2current_singlestim(
                                            'stationary_time': stimDict['stationary_time'][stim_i],
                                            'duration': stimDict['duration'],
                                             'texture': stimDict['texture'][stim_i],
-                                        "center": stimDict['center'][stim_i]})
+                                        "circle_center": stimDict['circle_center'][stim_i],
+                                        "circle_radius": stimDict['circle_radius'][stim_i]})
             stimulus = stimulus + [legacy2current_singlestim(single_stim_df,
                                                              light_value=light_value,
                                                              dark_value=dark_value,
@@ -394,7 +395,8 @@ def legacy2current_singlestim(
             pass
         # create real texture
         texDict = {"texture_name": tex, "frequency": frequency, "texture_size": texture_size,
-                   "light_value": light_value, "dark_value": dark_value, "circle_center": stimDict['center']}
+                   "light_value": light_value, "dark_value": dark_value, "circle_center": stimDict['circle_center'],
+                   "circle_radius": stimDict['circle_radius']}
         createdTexture = utils.createTexture(texDict)
         createdTextures = (createdTexture, createdTexture)
         if stimDict['stim_type'] == 'b':#hasattr(stimDict["angle"], "__iter__"):
@@ -410,6 +412,7 @@ def legacy2current_singlestim(
         elif stimDict['stim_type'] == 's':
             stimDict["velocity"] = float(stimDict["velocity"])
             stimDict["duration"] = int(stimDict["duration"])
+            stimDict["angle"] = int(stimDict["angle"])
             stimDict["stationary_time"] = int(stimDict["stationary_time"])
             detail_dict = {
                     k: v
