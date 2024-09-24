@@ -539,6 +539,7 @@ class StimulusSequencing(ShowBase):
                 "projecting_fish": False,
                 "hold_onfinish": True,
                 "publish_port": 5010,
+                "centering_stimulus": "concentric circle"
             }
 
     def enable_params(self):
@@ -700,7 +701,16 @@ class BehaviorStimulus(SequencingWithPause):
 
     def run_radial(self, radial_task):
         super().clear_cards()
-        self.current_stimulus = self.rad_stack[self.radial_index]
+        if self.default_params["centering_stimulus"] == "concentric_circle":
+            self.current_stimulus = self.rad_stack[self.radial_index]
+        elif self.default_params["centering_stimulus"] == "blank":
+            self.current_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'pet turtle',
+                texture = textures.BlankTex(),  velocity=0., angle=0)
+        elif self.default_params["centering_stimulus"] == "phototaxis":
+            self.current_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'pet turtle',
+                texture = textures.CircleGrayTex(circle_radius = 50),  velocity=0., angle=0)
+        else:
+            print("centering stimulus not understood")
         self.radial_index += 1
         if self.radial_index == len(self.rad_stack):#loop around rad stack forever
             self.radial_index = 0
