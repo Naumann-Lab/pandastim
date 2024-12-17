@@ -360,7 +360,7 @@ def legacy2current(stim_df, tex="grating_gray", duration=15, stationary_time=10)
     return stimSequence
 
 def legacy2current_singlestim(
-    stim_df, tex="grating_gray", frequency=32, duration=15, stationary_time=10, texture_size = 1024,
+    stim_df, tex="grating_gray", frequency=32, duration=15, stationary_time=10, texture_size = 4096,
     dark_value = 0, light_value = 255):
     """for a single stimuli. legacy: dataframe format; current: stimulus_details format"""
     import inspect
@@ -370,6 +370,9 @@ def legacy2current_singlestim(
     if type(stimDict['stim_type']) == list:  # masked
         stimulus = []
         for stim_i in range(len(stimDict['stim_type'])):
+            try:
+                frequency = stimDict['frequency'][stim_i]
+            except: pass
             single_stim_df = pd.Series({'stim_name': stimDict['stim_name'][stim_i],
                                            'angle': stimDict['angle'][stim_i],
                                            'velocity': stimDict['velocity'][stim_i],
@@ -393,8 +396,12 @@ def legacy2current_singlestim(
             tex = stimDict['texture']
         except:
             pass
+        try:
+            frequency = stimDict['frequency']
+        except:
+            pass
         # create real texture
-        texDict = {"texture_name": tex, "frequency": frequency, "texture_size": texture_size,
+        texDict = {"texture_name": tex, "frequency": int(frequency), "texture_size": texture_size,
                    "light_value": light_value, "dark_value": dark_value, "circle_center": stimDict['circle_center'],
                    "circle_radius": stimDict['circle_radius']}
         createdTexture = utils.createTexture(texDict)
@@ -426,6 +433,7 @@ def legacy2current_singlestim(
         elif stimDict['stim_type'] == 'm':
             stimDict["velocity"] = float(stimDict["velocity"])
             stimDict["duration"] = int(stimDict["duration"])
+            stimDict["angle"] = int(stimDict["angle"])
             stimDict["stationary_time"] = int(stimDict["stationary_time"])
             detail_dict = {
                 k: v
