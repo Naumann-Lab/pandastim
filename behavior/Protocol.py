@@ -740,7 +740,7 @@ class BrukerClosedLoopProtocol(BaseProtocol):
     def stim_sequencer(self):
         # This is called every time new data arrives
 
-        data = self.fish_data
+        data = self.fish_data[-1]
 
         # IF YOU MAKE IT TO HERE YOUR SHOWING STIMULI #
         if not self.stimulating:
