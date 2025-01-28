@@ -119,7 +119,7 @@ class RgbTex(TextureBase):
     full-field color
     """
 
-    def __init__(self, color=(0, 255, 0), texture_name="rgb_field", *args, **kwargs):
+    def __init__(self, color=(255, 0, 0), texture_name="rgb_field", *args, **kwargs):
         self.color = color
         super().__init__(texture_name=texture_name, *args, **kwargs)
 
@@ -152,14 +152,14 @@ class CircleGrayTex(TextureBase):
     def __init__(
         self,
         circle_center=(0, 0),
-        circle_radius=100,
+        circle_radius=1,
         bg_intensity=0,
         fg_intensity=255,
         texture_name="gray_circle",
         *args,
         **kwargs,
     ):
-        self.circle_center = circle_center
+        self.circle_center = circle_center#circle_center
         self.circle_radius = circle_radius
         self.bg_intensity = bg_intensity
         self.fg_intensity = fg_intensity
@@ -180,9 +180,8 @@ class CircleGrayTex(TextureBase):
         circle_texture = self.bg_intensity * np.ones(
             (self.texture_size[0], self.texture_size[1]), dtype=np.uint8
         )
-        circle_mask = (X - self.circle_center[0]) ** 2 + (
-            Y - self.circle_center[1]
-        ) ** 2 <= self.circle_radius**2
+        circle_mask = (X - self.circle_center[0]) ** 2 + (Y - self.circle_center[1]) ** 2 <= self.circle_radius**2
+
         circle_texture[circle_mask] = self.fg_intensity
         return np.uint8(circle_texture)
 
@@ -292,7 +291,7 @@ class GratingRgbTex(TextureBase):
 
     def __init__(
         self,
-        color=(255, 0, 0),
+        color=(125, 0, 0),
         frequency=10,
         texture_name="grating_rgb",
         *args,
@@ -321,6 +320,7 @@ class GratingRgbTex(TextureBase):
         B = np.uint8(
             (self.color[2] / 255) * utils.grating_byte(array, freq=self.frequency)
         )
+
         rgb_grating = np.zeros(
             (self.texture_size[1], self.texture_size[0], 3), dtype=np.uint8
         )
@@ -342,9 +342,10 @@ class CalibrationTriangles(TextureBase):
 
     def __init__(
         self,
+        texture_size = (1024, 1024),
         tri_size=50,
         circle_radius=7,
-        x_offset=0,
+        x_offset=500,
         y_offset=0,
         texture_name="circs",
         *args,
@@ -354,12 +355,11 @@ class CalibrationTriangles(TextureBase):
         self.x_offset = x_offset
         self.y_offset = y_offset
         self.circle_radius = circle_radius
-        super().__init__(texture_name=texture_name, *args, **kwargs)
+        super().__init__(texture_size = texture_size, texture_name =texture_name)
 
     def create_texture(self) -> np.array:
         self.midx = self.texture_size[0] // 2
         self.midy = self.texture_size[1] // 2
-
         self.pt1 = (
             int((self.midx + self.x_offset - (self.tri_size * math.sqrt(3)) // 2)),
             int((self.midy + self.y_offset + self.tri_size // 2)),
@@ -374,14 +374,12 @@ class CalibrationTriangles(TextureBase):
             int((self.midx + self.x_offset - (self.tri_size * math.sqrt(3)) // 2)),
             int((self.midy + self.y_offset - self.tri_size // 2)),
         )
-
         circle_texture = np.zeros((self.texture_size[1], self.texture_size[0]))
 
         [
             cv2.circle(circle_texture, i, self.circle_radius, 255, -1)
             for i in [self.pt1, self.pt2, self.pt3]
         ]
-
         return np.uint8(circle_texture)
 
     def __str__(self) -> str:
@@ -393,11 +391,11 @@ class CalibrationTriangles(TextureBase):
 
 class RadialSinCube(TextureBase):
     def __init__(
-        self, phase=0, period=32, texture_name="radial_sin_centering", *args, **kwargs
+        self, texture_size=(1024,1024), phase=0, period=32, texture_name="radial_sin_centering", *args, **kwargs
     ):
         self.phase = phase
         self.period = period
-        super().__init__(texture_name=texture_name, *args, **kwargs)
+        super().__init__(texture_size=texture_size, texture_name=texture_name, *args, **kwargs)
 
     def create_texture(self) -> np.array:
         x = np.linspace(-self.period * np.pi, self.period * np.pi, self.texture_size[0])

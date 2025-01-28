@@ -8,6 +8,7 @@ Part of pandastim package: https://github.com/mattdloring/pandastim
 from dataclasses import dataclass
 
 import numpy as np
+import pandas as pd
 
 from pandastim import utils
 
@@ -290,7 +291,9 @@ class MaskedStimulusDetailsPack(StimulusDetails):
             tex_dict = utils.unpack_tex(masked_stim_deets.texture)
             stim_dict = vars(masked_stim_deets).copy()
             stim_dict.pop("texture")
-            outDict[n] =  {"stimulus": stim_dict, "texture": tex_dict}
+            outDict[n] = {"stimulus": stim_dict, "texture": tex_dict}
+        return outDict
+
 
 def monocular2binocular(
     monoc1: MonocularStimulusDetails,
@@ -323,7 +326,7 @@ def monocular2binocular(
     return BinocularStimulusDetails(**new_stim_dict)
 
 
-def legacy2current(stim_df, tex="grating_gray", duration=15, stationary_time=10):
+def legacy2current(stim_df, tex="grating_gray", duration=15, stationary_time=10):#trasnferred to utils...
     import inspect
 
     texDict = {"texture_name": "grating_gray", "frequency": 48}
@@ -355,3 +358,89 @@ def legacy2current(stim_df, tex="grating_gray", duration=15, stationary_time=10)
 
         stimSequence.append(stimulus)
     return stimSequence
+
+def legacy2current_singlestim(
+    stim_df, tex="grating_gray", frequency=32, duration=15, stationary_time=10, texture_size = 4096,
+    dark_value = 0, light_value = 255):
+    """for a single stimuli. legacy: dataframe format; current: stimulus_details format"""
+    import inspect
+
+    stimDict = dict(stim_df)
+    if type(stimDict['stim_type']) == list:  # masked
+        stimulus = []
+        for stim_i in range(len(stimDict['stim_type'])):
+            try:
+                frequency = stimDict['frequency'][stim_i]
+            except: pass
+            single_stim_df = pd.Series({'stim_name': stimDict['stim_name'][stim_i],
+                                           'angle': stimDict['angle'][stim_i],
+                                           'velocity': stimDict['velocity'][stim_i],
+                                           'stim_type': stimDict['stim_type'][stim_i],
+                                           'stationary_time': stimDict['stationary_time'][stim_i],
+                                           'duration': stimDict['duration'],
+                                            'texture': stimDict['texture'][stim_i],
+                                        "circle_center": stimDict['circle_center'][stim_i],
+                                        "circle_radius": stimDict['circle_radius'][stim_i]})
+            stimulus = stimulus + [legacy2current_singlestim(single_stim_df,
+                                                             light_value=light_value,
+                                                             dark_value=dark_value,
+                                                             frequency=frequency,
+                                                             texture_size=texture_size
+                                                             )]
+        stimulus = MaskedStimulusDetailsPack(stim_name= stimDict['stim_name'], masked_stim_details=stimulus)
+    # for single/not masked stimuli
+    elif type(stimDict['stim_type']) == str:
+        # try to see if texture information is encoded
+        try:
+            tex = stimDict['texture']
+        except:
+            pass
+        try:
+            frequency = stimDict['frequency']
+        except:
+            pass
+        # create real texture
+        texDict = {"texture_name": tex, "frequency": int(frequency), "texture_size": texture_size,
+                   "light_value": light_value, "dark_value": dark_value, "circle_center": stimDict['circle_center'],
+                   "circle_radius": stimDict['circle_radius']}
+        createdTexture = utils.createTexture(texDict)
+        createdTextures = (createdTexture, createdTexture)
+        if stimDict['stim_type'] == 'b':#hasattr(stimDict["angle"], "__iter__"):
+            detail_dict = {
+                    k: v
+                    for k, v in stimDict.items()
+                    if k in list(inspect.signature(BinocularStimulusDetails).parameters)
+                }
+            detail_dict["duration"] = (detail_dict["duration"], detail_dict["duration"])
+            detail_dict["stationary_time"] = (detail_dict["stationary_time"], detail_dict["stationary_time"])
+            del detail_dict['texture']
+            stimulus = BinocularStimulusDetails(texture=createdTextures, **detail_dict)
+        elif stimDict['stim_type'] == 's':
+            stimDict["velocity"] = float(stimDict["velocity"])
+            stimDict["duration"] = int(stimDict["duration"])
+            stimDict["angle"] = int(stimDict["angle"])
+            stimDict["stationary_time"] = int(stimDict["stationary_time"])
+            detail_dict = {
+                    k: v
+                    for k, v in stimDict.items()
+                    if k in list(inspect.signature(MonocularStimulusDetails).parameters)
+                }
+            detail_dict["duration"] = detail_dict["duration"]
+            detail_dict["stationary_time"] = detail_dict["stationary_time"]
+            del detail_dict['texture']
+            stimulus = MonocularStimulusDetails(texture=createdTexture, **detail_dict)
+        elif stimDict['stim_type'] == 'm':
+            stimDict["velocity"] = float(stimDict["velocity"])
+            stimDict["duration"] = int(stimDict["duration"])
+            stimDict["angle"] = int(stimDict["angle"])
+            stimDict["stationary_time"] = int(stimDict["stationary_time"])
+            detail_dict = {
+                k: v
+                for k, v in stimDict.items()
+                if k in list(inspect.signature(BinocularStimulusDetails).parameters)
+            }
+            detail_dict["duration"] = detail_dict["duration"]
+            detail_dict["stationary_time"] = detail_dict["stationary_time"]
+            del detail_dict['texture']
+            stimulus = MaskedStimulusDetails(texture=createdTexture, **detail_dict)
+    return stimulus
