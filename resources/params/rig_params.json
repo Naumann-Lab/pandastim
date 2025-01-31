@@ -1,0 +1,42 @@
+{"light_value": 255, "dark_value": 0, "frequency": 48, "center_width": 12,
+    "strip_angle": 0,
+    "center": [
+        0,
+        0
+    ],
+    "scale": 0.25,
+    "rotation_offset": 0,
+    "other_offset": 0,
+    "center_dot_size": 9,
+    "center_coord": [
+        0,
+        0
+    ],
+    "window_size": [
+        1024,
+        1024
+    ],
+    "window_position": [
+        4070,
+        360
+    ],
+    "min_fish_dst_to_center": 275,
+    "missing_fish_t": 0.2,
+    "radial_centering": true,
+    "fps": 60,
+    "window_undecorated": true,
+    "window_foreground": true,
+    "window_title": "Pandastim",
+    "profile_on": false,
+    "projecting_fish": false,
+    "hold_onfinish": true,
+    "save_path": "E:\\Cleo",
+    "rig_number": 
+    0,
+    "roi": [0, 0, 2048, 2048],
+    "camera_rotation": 0,
+    "xy_thresh": 20,
+    "theta_thresh": 8.5,
+    "centering_stimulus": "phototaxis",
+    "pstim": true
+}
