@@ -8,7 +8,7 @@ from pandastim.buddies.stimulus_buddies import StimulusBuddy, StytraBuddy
 from pandastim.utils import Publisher, Subscriber
 from datetime import datetime as dt
 
-from math import radians, degrees, cos, sin, atan
+from math import radians, degrees, cos, sin, atan, atan2
 
 import sys
 import zmq
@@ -605,7 +605,48 @@ class BrukerClosedLoopProtocol(BaseProtocol):
                         calibration.save_params(proj_to_camera, camera_to_proj, self.rig_number)
                         print('calibration saved: ', proj_to_camera)
                     except Exception as e:
-                        print('failed to calibrate', e)
+                        print('failed to calibrate, manually give me points', e)
+                        image -= 3
+                        image[image < 0] = 0
+                        image = np.array(image)
+                        self.camera_pts = [np.nan, np.nan, np.nan]
+                        self.p1 = None
+                        self.p2 = None
+                        self.p3 = None
+                        display_shape = (600, 600)
+                        def transform_resize_image(x, y):#because I transform the image as a smaller size to fit inthe window on the screen, I need to transform these
+                            return (x/display_shape[0]*image.shape[0],  y/display_shape[1]*image.shape[1])
+                        def draw(event, x, y, flags, params):#@ChatGPT
+                            if event == cv2.EVENT_LBUTTONDOWN:
+                                if self.p1 == None:
+                                    self.p1 = transform_resize_image(x, y)
+                                elif self.p2 == None:
+                                    self.p2 = transform_resize_image(x, y)
+                                elif self.p3 == None:
+                                    self.p3 = transform_resize_image(x, y)
+
+                        cv2.namedWindow('calibrationWindow')
+                        cv2.setMouseCallback('calibrationWindow', draw)
+
+                        # opencv windows like to pop up in the background, this is hacky but brings it to front
+                        calibration_window = gw.getWindowsWithTitle('calibrationWindow')[0]
+                        calibration_window.minimize()
+                        calibration_window.restore()
+                        calibration_window.maximize()
+                        
+
+                        while True:
+                            resized_image = cv2.resize(image, display_shape)
+                            cv2.imshow('calibrationWindow', resized_image)
+                            key = cv2.waitKey(500)
+                            if key == 27:
+                                break
+                        cv2.destroyAllWindows()
+                        proj_to_camera, camera_to_proj = calibration.StimulusCalibrator(image, manual = True, 
+                                                        camera_pts = np.array([self.p1, self.p2, self.p3])).transforms()
+                        calibration.save_params(proj_to_camera, camera_to_proj, self.rig_number)
+                        print('calibration saved: ', proj_to_camera)
+
 
                 elif topic == 'centering':
                     image -= 3
@@ -613,27 +654,31 @@ class BrukerClosedLoopProtocol(BaseProtocol):
                     image = np.array(image)
                     self.centered_pt = [np.nan, np.nan]
                     self.centered_theta = np.nan
+                    self.centered_theta_cali = np.nan
                     self.p1 = None
                     self.p2 = None
+                    display_shape = (1000, 1000)
+                    def transform_resize_image(x, y):#because I transform the image as a smaller size to fit inthe window on the screen, I need to transform these
+                        return (int(x/display_shape[0]*image.shape[0]),  int(y/display_shape[1]*image.shape[1]))
                     def draw(event, x, y, flags, params):#@ChatGPT
                         if event == cv2.EVENT_LBUTTONDOWN:
-                            self.p1 = (x, y)
+                            self.p1 = transform_resize_image(x, y)
                         elif event == cv2.EVENT_LBUTTONUP:
-                            self.p2 = (x, y)
+                            self.p2 = transform_resize_image(x, y)
                             # If first click exists, draw a line from first click to second click
-                            cv2.line(image, self.p1,self. p2, color=(255, 255, 255), thickness=3)
+                            cv2.line(image, self.p1, self.p2, color=(255, 255, 255), thickness=3)
                             #calculate the mid perpendicular line that symbolize the heading direction
                             midpoint = ((self.p1[0] + self.p2[0]) // 2, (self.p1[1] + self.p2[1]) // 2)
                             dx = self.p2[0] - self.p1[0]
                             dy = self.p2[1] - self.p1[1]
-                            if dx != 0:  # If the line is not vertical
-                                slope = dy / dx
+                            if dy != 0:  # If the line is not vertical
+                                slope = dx/dy
                                 # Perpendicular slope
                                 perp_slope = -1 / slope
                                 # Length of the perpendicular line (arbitrary choice)
                                 line_length = 100
-                                perp_dx = int(cos(atan(perp_slope)) * line_length)
-                                perp_dy = int(sin(atan(perp_slope)) * line_length)
+                                perp_dx = int(sin(atan(perp_slope)) * line_length)
+                                perp_dy = int(cos(atan(perp_slope)) * line_length)
                                 # Draw the perpendicular line
                                 cv2.line(image,
                                         (midpoint[0] - perp_dx, midpoint[1] - perp_dy),
@@ -644,9 +689,14 @@ class BrukerClosedLoopProtocol(BaseProtocol):
                                 cv2.line(image,
                                         (midpoint[0] - 100, midpoint[1]),
                                         (midpoint[0] + 100, midpoint[1]),
-                                        color=(255, 100, 100), thickness=3)
+                                        color=(255,255, 255), thickness=3)
                                 self.centered_theta = 0
                             self.centered_pt = midpoint
+                            #calculate the calibrated slope on the projector
+                            p1_cali = self.position_transformer(self.p1[0], self.p1[1])
+                            p2_cali = self.position_transformer(self.p2[0], self.p2[1])
+
+                            self.centered_theta_cali = atan2(p2_cali[1] - p1_cali[1], p2_cali[0] - p1_cali[0])                            
 
                     cv2.namedWindow('centerWindow')
                     cv2.setMouseCallback('centerWindow', draw)
@@ -658,7 +708,8 @@ class BrukerClosedLoopProtocol(BaseProtocol):
                     centering_window.maximize()
 
                     while True:
-                        cv2.imshow('centerWindow', image)
+                        resized_image = cv2.resize(image, display_shape)
+                        cv2.imshow('centerWindow', resized_image)
                         key = cv2.waitKey(500)
                         if key == 27:
                             break
@@ -671,7 +722,7 @@ class BrukerClosedLoopProtocol(BaseProtocol):
                         print(f'raw {self.centered_pt}' ,e)
 
                     try:
-                        calibration.save_centers(self.centered_pt, self.centered_theta, self.rig_number)
+                        calibration.save_centers(self.centered_pt, self.centered_theta_cali, self.rig_number)
                         print('center saved')
                     except Exception as e:
                         print('failed to center', e)
@@ -683,9 +734,7 @@ class BrukerClosedLoopProtocol(BaseProtocol):
         self.last_message = None
 
         self.current_stim = {'stim_type' : None, 'angle' : None, 'stim_name': None}
-
         super().run_experiment()
-
         curr_t = time.time()
         self.timing_comm.socket.send_string('time', zmq.SNDMORE)
         self.timing_comm.socket.send_pyobj([curr_t - self.init_time + 3 + np.sum(self.stimuli.duration.values), curr_t - self.init_time])
@@ -750,8 +799,8 @@ class BrukerClosedLoopProtocol(BaseProtocol):
             self.current_stim = self.stimuli.iloc[self.current_stim_id]
             self.protocol_buddy_pub.socket.send_string('stimulus')
             self.protocol_buddy_pub.socket.send_pyobj(self.current_stim)
-            x, y = self.position_transformer(self.centered_pt[1], self.centered_pt[0])
-            theta = utils.angle_mean(utils.reduce_to_pi(self.centered_theta))
+            x, y = self.position_transformer(self.centered_pt[0], self.centered_pt[1])
+            theta = self.centered_theta_cali
             self.protocol_buddy_pub.socket.send_string('stimulus_update')
             self.protocol_buddy_pub.socket.send_pyobj([x, y, degrees(theta)])
             self.last_update_time = time.time()

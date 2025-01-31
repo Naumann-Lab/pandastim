@@ -260,7 +260,7 @@ class ExternalCameraDisplay_embed(TailTrackingSelection):
             self.centering_socket_number = image_sock
             self.centering_context = zmq.Context()
             self.centering_socket = self.centering_context.socket(zmq.PUB)
-            self.centering_socket.bind(str("tcp://*:") + str(self.centering_socket_number))        
+            self.centering_socket.bind(str("tcp://*:") + str(self.centering_socket_number))   
 
 
     def center_calibrator(self):
@@ -288,22 +288,6 @@ class ExternalCameraDisplay_embed(TailTrackingSelection):
 
         if self.calibration_toggle == 1:
             self.msg_sender(sock=self.centering_socket, img=status, string=topic, image=False)
-
-    def initialise_roi(self, roi):
-        """ROI is initialised separately, so it can first be defined in the
-        child __init__.
-
-        Parameters
-        ----------
-
-        Returns
-        -------
-
-        """
-        # Add ROI to image and connect it to the function for updating
-        # the relative params:
-        self.display_area.addItem(roi)
-        roi.sigRegionChanged.connect(self.set_pos_from_roi)
 
     @staticmethod
     def msg_sender(sock, img, string, image=True):
@@ -333,12 +317,14 @@ class ExternalCameraDisplay_embed(TailTrackingSelection):
 
             # Check for data to be displayed:
             # Retrieve tail angles from tail
+           
             angles = [
                 getattr(retrieved_data, "theta_{:02d}".format(i))
                 for i in range(self.tail_params.n_output_segments)
             ]
+
             # Get tail position and length from the parameters:
-            (start_y, start_x), (tail_len_y, tail_len_x) = self.tail_dims()
+            (start_x, start_y), (tail_len_x, tail_len_y) = self.tail_dims()
             tail_length = np.sqrt(tail_len_x ** 2 + tail_len_y ** 2)
 
             # Get segment length:
@@ -352,7 +338,7 @@ class ExternalCameraDisplay_embed(TailTrackingSelection):
                     + tail_segment_length * np.array([np.cos(angle), np.sin(angle)])
                 )
             points = np.array(points)
-            self.curve_tail.setData(x=points[:, 1], y=points[:,0])
+            self.curve_tail.setData(x=points[:, 0], y=points[:,1])
            
 
 
@@ -458,13 +444,12 @@ def stytra_container(ports, camera_rot=0, roi=None, savedir=None,):
 
     if roi is None:
         roi = [0, 0, 1120, 1120]
-    print(roi)
 
     app = QApplication([])
     app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
     protocol = StytraDummy()
     exp = ExternalTrackingExperiment(protocol=protocol, app=app, dir_save=savedir,
-                                     tracking=dict(method='tail', embedded=True, estimator="vigor"),
+                                     tracking=dict(method='tail', embedded=True, estimator="vigor"),#IF RUNNING TAIL TRACKING, NEED TO SWAP STYTRA X AND Y IN THEIR TAIL TRACKING PIPELINE!!
                                      camera=dict(type='spinnaker', min_framerate=155, rotation=camera_rot, roi=roi),
                                      ports=ports
                                      )

@@ -18,13 +18,15 @@ class CalibrationException(Exception):
 
 
 class StimulusCalibrator:
-    def __init__(self, camera_img):
+    def __init__(self, camera_img, manual = False, camera_pts = (None, None, None)):
 
         self.camera_img = camera_img - 3
         self.projected_pts = self.get_proj_pts()
-        print(f'HI{self.projected_pts}')
         self.projected_pts = self.projected_pts[np.argsort(self._find_angles(self.projected_pts)), :]
-        self.camera_pts = self._find_triangle(self.camera_img)
+        if not manual:
+            self.camera_pts = self._find_triangle(self.camera_img)
+        else:
+            self.camera_pts = camera_pts[np.argsort(StimulusCalibrator._find_angles(camera_pts)), :]
 
     @staticmethod
     def get_proj_pts():
