@@ -22,3 +22,6 @@ Once you've got your environment squared away, you can install pandastim by head
     git clone https://github.com/Naumann-Lab/pandastim.git
     
 To test the installation, try running one of the examples in [examples/)
+
+
+### new updates here
