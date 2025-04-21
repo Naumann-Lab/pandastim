@@ -8,7 +8,7 @@ from pandastim.buddies.stimulus_buddies import StimulusBuddy, StytraBuddy
 from pandastim.utils import Publisher, Subscriber
 from datetime import datetime as dt
 
-from math import radians, degrees
+from math import radians, degrees, cos, sin, atan
 
 import sys
 import zmq
@@ -30,7 +30,11 @@ class BaseProtocol(DirectObject.DirectObject):
         self.defaults = defaults
         self.rig_number = defaults['rig_number']
 
-        self.centered_pt = self.defaults['center_coord']
+        try:
+            self.centered_pt, self.centered_theta = calibration.load_centers(self.rig_number)
+        except:
+            print('no calibrated center points found, using center coords in default params')
+            self.centered_pt = self.defaults['center_coord']
 
         # set up handshake communication with stytra for experiment triggering
         self.experiment_trigger_context = zmq.Context()
@@ -210,7 +214,7 @@ class CenterClickTestingProtocol(BaseProtocol):
 
     def run_experiment(self):
         super().run_experiment()
-        import pandas as pd
+        #import pandas as pd
         #stim = pd.DataFrame({'stim_type': ['b'], 'velocity': [(0, 0)], 'angle': [(0, 0)], 'stationary_time': [(0, 0)],'duration': [(0, 0)]}).iloc[0]
         #stim = [pd.DataFrame({'stim_type' : ['s'], 'velocity' : [0], 'angle' : [0]}),
         #    textures.CircleGrayTex(circle_radius=3, texture_size=self.defaults['window_size'][0])]
@@ -562,3 +566,201 @@ class ClosedLoopProtocol(BaseProtocol):
                 else:
                     self.stimulating = False
         self.save([self.current_stim_id, self.current_stim], self.fish_data[-1][0], self.fish_data[-1][1], self.fish_data[-1][2])
+
+
+class BrukerClosedLoopProtocol(BaseProtocol):
+    def __init__(self, *args, **kwargs):
+        # update stytras timer this often (in seconds)
+        # if this is too fast stytra gets wrecked
+
+        self.t_update_frequency = 1
+
+        self.current_stim_id = -1
+        self.stimulating = False
+
+        super().__init__(*args, **kwargs)
+
+    def centering_calibration(self):
+        """receive clicking on the different icons for calibration and tell buddy to display calibration stimuli
+        also calibrate/centering and save the locations"""
+        while not self.experiment_finished:
+            topic = self.stytra_cam_output_port.socket.recv_string()
+            if topic == 'calibrationStimulus':
+                ## this will be a toggled string on/off
+                msg = self.stytra_cam_output_port.socket.recv_pyobj()[0]
+                toggle_direction = msg.split('_')[-1]
+
+                if toggle_direction == 'on':
+                    self.protocol_buddy_pub.socket.send_string('calibration_stimulus')
+                    self.protocol_buddy_pub.socket.send_pyobj(True)
+                elif toggle_direction == 'off':
+                    self.protocol_buddy_pub.socket.send_string('calibration_stimulus')
+                    self.protocol_buddy_pub.socket.send_pyobj(False)
+            else:
+                ## this will be images
+                image = utils.img_receiver(self.stytra_cam_output_port.socket)
+                if topic == 'calibration':
+                    try:
+                        proj_to_camera, camera_to_proj = calibration.StimulusCalibrator(image).transforms()
+                        calibration.save_params(proj_to_camera, camera_to_proj, self.rig_number)
+                        print('calibration saved: ', proj_to_camera)
+                    except Exception as e:
+                        print('failed to calibrate', e)
+
+                elif topic == 'centering':
+                    image -= 3
+                    image[image < 0] = 0
+                    image = np.array(image)
+                    self.centered_pt = [np.nan, np.nan]
+                    self.centered_theta = np.nan
+                    self.p1 = None
+                    self.p2 = None
+                    def draw(event, x, y, flags, params):#@ChatGPT
+                        if event == cv2.EVENT_LBUTTONDOWN:
+                            self.p1 = (x, y)
+                        elif event == cv2.EVENT_LBUTTONUP:
+                            self.p2 = (x, y)
+                            # If first click exists, draw a line from first click to second click
+                            cv2.line(image, self.p1,self. p2, color=(255, 255, 255), thickness=3)
+                            #calculate the mid perpendicular line that symbolize the heading direction
+                            midpoint = ((self.p1[0] + self.p2[0]) // 2, (self.p1[1] + self.p2[1]) // 2)
+                            dx = self.p2[0] - self.p1[0]
+                            dy = self.p2[1] - self.p1[1]
+                            if dx != 0:  # If the line is not vertical
+                                slope = dy / dx
+                                # Perpendicular slope
+                                perp_slope = -1 / slope
+                                # Length of the perpendicular line (arbitrary choice)
+                                line_length = 100
+                                perp_dx = int(cos(atan(perp_slope)) * line_length)
+                                perp_dy = int(sin(atan(perp_slope)) * line_length)
+                                # Draw the perpendicular line
+                                cv2.line(image,
+                                        (midpoint[0] - perp_dx, midpoint[1] - perp_dy),
+                                        (midpoint[0] + perp_dx, midpoint[1] + perp_dy),
+                                        color=(255, 255, 255), thickness=3)
+                                self.centered_theta = atan(slope)
+                            else:  # If the original line is vertical, the perpendicular line is horizontal
+                                cv2.line(image,
+                                        (midpoint[0] - 100, midpoint[1]),
+                                        (midpoint[0] + 100, midpoint[1]),
+                                        color=(255, 100, 100), thickness=3)
+                                self.centered_theta = 0
+                            self.centered_pt = midpoint
+
+                    cv2.namedWindow('centerWindow')
+                    cv2.setMouseCallback('centerWindow', draw)
+
+                    # opencv windows like to pop up in the background, this is hacky but brings it to front
+                    centering_window = gw.getWindowsWithTitle('centerWindow')[0]
+                    centering_window.minimize()
+                    centering_window.restore()
+                    centering_window.maximize()
+
+                    while True:
+                        cv2.imshow('centerWindow', image)
+                        key = cv2.waitKey(500)
+                        if key == 27:
+                            break
+                    cv2.destroyAllWindows()
+
+                    self.proj2cam, self.cam2proj = calibration.load_params(self.rig_number)
+                    try:
+                        print(f'raw: {self.centered_pt} texture:  {cv2.transform(np.reshape(self.centered_pt, (1, 1, 2)), self.cam2proj)[0][0]} card: {self.position_transformer(self.centered_pt[0], self.centered_pt[1])}')
+                    except Exception as e:
+                        print(f'raw {self.centered_pt}' ,e)
+
+                    try:
+                        calibration.save_centers(self.centered_pt, self.centered_theta, self.rig_number)
+                        print('center saved')
+                    except Exception as e:
+                        print('failed to center', e)
+
+    def run_experiment(self):
+        self.filestream = utils.saving(self.defaults['save_path'])
+
+        self.last_t_update = 0
+        self.last_message = None
+
+        self.current_stim = {'stim_type' : None, 'angle' : None, 'stim_name': None}
+
+        super().run_experiment()
+
+        curr_t = time.time()
+        self.timing_comm.socket.send_string('time', zmq.SNDMORE)
+        self.timing_comm.socket.send_pyobj([curr_t - self.init_time + 3 + np.sum(self.stimuli.duration.values), curr_t - self.init_time])
+
+    def save(self, stim, x, y, theta, vigor):
+        self.filestream.write("\n")
+        t = time.time() - self.init_time
+        if 'duration' in stim[1]:
+            dur = stim[1]['duration']
+        else:
+            dur = 99
+        if 'stationary_time' in stim[1]:
+            stat = stim[1]['stationary_time']
+        else:
+            stat = 0
+        self.filestream.write(f"{t}_{self.current_stim_id}_{stim[1]['stim_type']}_{stim[1]['angle']}_{dur}_{stat}_{x}_{y}_{theta}_{vigor}")
+        self.filestream.flush()
+
+    def update_time(self):
+        curr_t = time.time()
+        if curr_t - self.last_t_update >= self.t_update_frequency:
+
+            self.timing_comm.socket.send_string('time', zmq.SNDMORE)
+            if self.current_stim_id != -1:
+                self.timing_comm.socket.send_pyobj(
+                    [(curr_t - self.init_time) + 3 + np.sum(
+                        self.stimuli.duration.values[self.current_stim_id:]), (curr_t - self.init_time)])
+            else:
+               self.timing_comm.socket.send_pyobj(
+                    [(curr_t - self.init_time) + 3 + np.sum(
+                        self.stimuli.duration.values), (curr_t - self.init_time)])
+            self.last_t_update = curr_t
+
+    def position_receiver(self):
+        """Receiving the tracking data, currently not being used but can be implemented as closed loop vigor
+        in the future."""
+        while self.experiment_running:
+            topic = self.position_comm.socket.recv_string()
+            data = self.position_comm.socket.recv_pyobj()#right now: the vigor of the fish
+
+            self.fish_data.append(data)
+
+            if not np.isnan(data):
+                self.last_fish_present = time.time()
+
+            # trim lists
+            if len(self.fish_data) >= self.max_buffer:
+                self.fish_data = self.fish_data[-self.max_buffer//2:]
+
+            self.stim_sequencer()
+
+    def stim_sequencer(self):
+        # This is called every time new data arrives
+
+        data = self.fish_data[-1]
+
+        # IF YOU MAKE IT TO HERE YOUR SHOWING STIMULI #
+        if not self.stimulating:
+            self.current_stim_id += 1
+            if self.current_stim_id > len(self.stimuli) - 1:
+                self.end_experiment()
+            self.current_stim = self.stimuli.iloc[self.current_stim_id]
+            self.protocol_buddy_pub.socket.send_string('stimulus')
+            self.protocol_buddy_pub.socket.send_pyobj(self.current_stim)
+            x, y = self.position_transformer(self.centered_pt[1], self.centered_pt[0])
+            theta = utils.angle_mean(utils.reduce_to_pi(self.centered_theta))
+            self.protocol_buddy_pub.socket.send_string('stimulus_update')
+            self.protocol_buddy_pub.socket.send_pyobj([x, y, degrees(theta)])
+            self.last_update_time = time.time()
+            self.save([self.current_stim_id, self.current_stim], x, y, self.centered_theta, data)
+
+            self.last_message = 'some_stimmin'
+
+            self.stimulating = True
+            self.stim_start = time.time()
+        if self.stimulating and time.time() - self.stim_start >= np.max(self.current_stim.duration):
+            self.stimulating = False
+        #self.save([self.current_stim_id, self.current_stim], x, y, theta, data)

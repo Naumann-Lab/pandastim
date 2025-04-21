@@ -7,6 +7,7 @@ import qdarkstyle
 import sys
 
 import numpy as np
+import pyqtgraph as pg
 
 from pathlib import Path
 
@@ -14,7 +15,7 @@ from pathlib import Path
 from stytra.stimulation.stimuli import Stimulus
 from stytra.experiments.tracking_experiments import TrackingExperiment
 from stytra.gui.container_windows import TrackingExperimentWindow
-from stytra.gui.camera_display import CameraViewFish
+from stytra.gui.camera_display import CameraViewFish, CameraViewEyeFish, EyeTrackingSelection, TailTrackingSelection, EyeTailTrackingSelection, SingleLineROI
 from stytra.gui.camera_display import _tail_points_from_coords as tail_points
 from stytra.gui.buttons import IconButton
 from stytra.gui.multiscope import MultiStreamPlot
@@ -93,7 +94,6 @@ class TimeUpdater(Stimulus):
             pass
 
         data = np.array(self._experiment.estimator.get_position())
-
         self._experiment.pstim_pub.socket.send_string('pos')
         self._experiment.pstim_pub.socket.send_pyobj(data)
 
@@ -206,7 +206,6 @@ class ExternalCameraDisplay(CameraViewFish):
         current_data = self.experiment.acc_tracking.values_at_abs_time(
             self.current_frame_time
         )
-
         n_fish = self.tracking_params.n_fish_max
 
         n_data_per_fish = (
@@ -225,17 +224,245 @@ class ExternalCameraDisplay(CameraViewFish):
                 tail_len = (
                     self.tracking_params.tail_length / self.tracking_params.n_segments
                 )
-                ys, xs = tail_points(retrieved_data, tail_len)
+                ys, xs = tail_points(retrieved_data, tail_len, n_points_tail)
                 self.lines_fish.setData(y=xs, x=ys)
         except ValueError as e:
             pass
+
+class ExternalCameraDisplay_eyefish(CameraViewEyeFish):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.centeringButton = LocalIconButton(
+            icon_name="CenteringButton", action_name="choose new centerpoint"
+        )
+        self.centeringButton.clicked.connect(self.center_calibrator)
+        self.layout_control.addWidget(self.centeringButton)
+
+        self.projectionCalibration = LocalIconButton(
+            icon_name="CalibrationButton", action_name="Calibrate Projection"
+        )
+        self.projectionCalibration.clicked.connect(self.stimulus_calibration)
+        self.layout_control.addWidget(self.projectionCalibration)
+
+        self.calibrationStimulus = LocalIconButton(
+            icon_name="CalibrationMode", action_name="swap to calibration stimulus"
+        )
+        self.calibrationStimulus.clicked.connect(self.calibration_stimulus)
+        self.layout_control.addWidget(self.calibrationStimulus)
+
+        self.calibration_toggle = 0
+
+        image_sock = self.experiment.return_image_socket()
+        if image_sock is not None:
+            self.centering_socket_number = image_sock
+            self.centering_context = zmq.Context()
+            self.centering_socket = self.centering_context.socket(zmq.PUB)
+            self.centering_socket.bind(str("tcp://*:") + str(self.centering_socket_number))
+
+
+    def center_calibrator(self):
+        print('centering')
+        topic = 'centering'
+        self.msg_sender(sock=self.centering_socket, img=self.image_item.image, string=topic, image=True)
+
+    def stimulus_calibration(self):
+        print('calibrating')
+        topic = 'calibration'
+        self.msg_sender(sock=self.centering_socket, img=self.image_item.image, string=topic, image=True)
+
+    def calibration_stimulus(self):
+        if self.calibration_toggle == 0:
+            self.calibration_toggle = 1
+            status = 'calibration_stimulus_on'
+        elif self.calibration_toggle == 1:
+            self.calibration_toggle = 0
+            status = 'calibration_stimulus_off'
+
+        topic = 'calibrationStimulus'
+
+        if self.calibration_toggle == 0:
+            self.msg_sender(sock=self.centering_socket, img=status, string=topic, image=False)
+
+        if self.calibration_toggle == 1:
+            self.msg_sender(sock=self.centering_socket, img=status, string=topic, image=False)
+
+    @staticmethod
+    def msg_sender(sock, img, string, image=True):
+        if image:
+            my_msg = dict(dtype=str(img.dtype), shape=img.shape)
+            sock.send_string(string, zmq.SNDMORE)
+            sock.send_json(my_msg, zmq.SNDMORE)
+            return sock.send(img)
+        else:
+            sock.send_string(string, zmq.SNDMORE)
+            return sock.send_pyobj([img])
+
+    def retrieve_image(self):
+        super().retrieve_image()
+        if (
+            len(self.experiment.acc_tracking.stored_data) == 0
+            or self.current_image is None
+        ):
+            return
+
+        current_data = self.experiment.acc_tracking.values_at_abs_time(
+            self.current_frame_time
+        )
+        n_fish = self.tracking_params.n_fish_max
+
+        n_data_per_fish = (
+            len(current_data) - 1
+        ) // n_fish  # the first is time, the last is area
+        n_points_tail = self.tracking_params.n_segments
+        try:
+            retrieved_data = np.array(
+                current_data[:-1]  # the -1 if for the diagnostic area
+            ).reshape(n_fish, n_data_per_fish)
+            valid = np.logical_not(np.all(np.isnan(retrieved_data), 1))
+            self.points_fish.setData(
+                x=retrieved_data[valid, 2], y=retrieved_data[valid, 0]
+            )
+            if n_points_tail:
+                tail_len = (
+                    self.tracking_params.tail_length / self.tracking_params.n_segments
+                )
+                ys, xs = tail_points(retrieved_data, tail_len, n_points_tail)
+                self.lines_fish.setData(y=xs, x=ys)
+        except ValueError as e:
+            pass
+
+
+class ExternalCameraDisplay_embed(TailTrackingSelection):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.centeringButton = LocalIconButton(
+            icon_name="CenteringButton", action_name="choose new centerpoint"
+        )
+        self.centeringButton.clicked.connect(self.center_calibrator)
+        self.layout_control.addWidget(self.centeringButton)
+
+        self.projectionCalibration = LocalIconButton(
+            icon_name="CalibrationButton", action_name="Calibrate Projection"
+        )
+        self.projectionCalibration.clicked.connect(self.stimulus_calibration)
+        self.layout_control.addWidget(self.projectionCalibration)
+
+        self.calibrationStimulus = LocalIconButton(
+            icon_name="CalibrationMode", action_name="swap to calibration stimulus"
+        )
+        self.calibrationStimulus.clicked.connect(self.calibration_stimulus)
+        self.layout_control.addWidget(self.calibrationStimulus)
+
+        self.calibration_toggle = 0
+
+        image_sock = self.experiment.return_image_socket()
+        if image_sock is not None:
+            self.centering_socket_number = image_sock
+            self.centering_context = zmq.Context()
+            self.centering_socket = self.centering_context.socket(zmq.PUB)
+            self.centering_socket.bind(str("tcp://*:") + str(self.centering_socket_number))        
+
+
+    def center_calibrator(self):
+        print('centering')
+        topic = 'centering'
+        self.msg_sender(sock=self.centering_socket, img=self.image_item.image, string=topic, image=True)
+
+    def stimulus_calibration(self):
+        print('calibrating')
+        topic = 'calibration'
+        self.msg_sender(sock=self.centering_socket, img=self.image_item.image, string=topic, image=True)
+
+    def calibration_stimulus(self):
+        if self.calibration_toggle == 0:
+            self.calibration_toggle = 1
+            status = 'calibration_stimulus_on'
+        elif self.calibration_toggle == 1:
+            self.calibration_toggle = 0
+            status = 'calibration_stimulus_off'
+
+        topic = 'calibrationStimulus'
+
+        if self.calibration_toggle == 0:
+            self.msg_sender(sock=self.centering_socket, img=status, string=topic, image=False)
+
+        if self.calibration_toggle == 1:
+            self.msg_sender(sock=self.centering_socket, img=status, string=topic, image=False)
+
+    def initialise_roi(self, roi):
+        """ROI is initialised separately, so it can first be defined in the
+        child __init__.
+
+        Parameters
+        ----------
+
+        Returns
+        -------
+
+        """
+        # Add ROI to image and connect it to the function for updating
+        # the relative params:
+        self.display_area.addItem(roi)
+        roi.sigRegionChanged.connect(self.set_pos_from_roi)
+
+    @staticmethod
+    def msg_sender(sock, img, string, image=True):
+        if image:
+            my_msg = dict(dtype=str(img.dtype), shape=img.shape)
+            sock.send_string(string, zmq.SNDMORE)
+            sock.send_json(my_msg, zmq.SNDMORE)
+            return sock.send(img)
+        else:
+            sock.send_string(string, zmq.SNDMORE)
+            return sock.send_pyobj([img])
+
+    def retrieve_image(self):
+        super().retrieve_image()
+
+        if self.current_image is None:
+            return
+
+        # Get data from queue(first is timestamp)
+        if len(self.experiment.acc_tracking.stored_data) > 1:
+            #TAIL STUFF
+            # To match tracked points and frame displayed looks for matching
+            # timestamps from the two different queues:
+            retrieved_data = self.experiment.acc_tracking.values_at_abs_time(
+                self.current_frame_time
+            )
+
+            # Check for data to be displayed:
+            # Retrieve tail angles from tail
+            angles = [
+                getattr(retrieved_data, "theta_{:02d}".format(i))
+                for i in range(self.tail_params.n_output_segments)
+            ]
+            # Get tail position and length from the parameters:
+            (start_y, start_x), (tail_len_y, tail_len_x) = self.tail_dims()
+            tail_length = np.sqrt(tail_len_x ** 2 + tail_len_y ** 2)
+
+            # Get segment length:
+            tail_segment_length = tail_length / (len(angles))
+            points = [np.array([start_x, start_y])]
+
+            # Calculate tail points from angles and position:
+            for angle in angles:
+                points.append(
+                    points[-1]
+                    + tail_segment_length * np.array([np.cos(angle), np.sin(angle)])
+                )
+            points = np.array(points)
+            self.curve_tail.setData(x=points[:, 1], y=points[:,0])
+           
 
 
 class ExternalTrackingExperimentWindow(TrackingExperimentWindow):
     def __init__(self, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
-        self.camera_display = ExternalCameraDisplay(experiment=kwargs["experiment"])
+        self.camera_display = ExternalCameraDisplay_eyefish(experiment=kwargs["experiment"])
 
         self.monitoring_widget = QWidget()
         self.monitoring_layout = QVBoxLayout()
@@ -335,10 +562,11 @@ def stytra_container(ports, camera_rot=0, roi=None, savedir=None,):
     app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
     protocol = StytraDummy()
     exp = ExternalTrackingExperiment(protocol=protocol, app=app, dir_save=savedir,
-                                     tracking=dict(method='fish', embedded=False, estimator="position"),
-                                     camera=dict(type='spinnaker', min_framerate=155, rotation=camera_rot, roi=roi),
+                                     tracking=dict(method='fish_eye', embedded=True, estimator="position"),
+                                     camera=dict(type='svs', min_framerate=155, rotation=camera_rot, roi=roi),
                                      ports=ports
                                      )
+
     exp.start_experiment()
     app.exec_()
 

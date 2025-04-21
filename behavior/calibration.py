@@ -22,7 +22,6 @@ class StimulusCalibrator:
 
         self.camera_img = camera_img - 3
         self.projected_pts = self.get_proj_pts()
-        print(f'HI{self.projected_pts}')
         self.projected_pts = self.projected_pts[np.argsort(self._find_angles(self.projected_pts)), :]
         self.camera_pts = self._find_triangle(self.camera_img)
 
@@ -103,6 +102,14 @@ def load_params(rig_number):
     print(f"loading from: {parent_path.joinpath(f'rig_{rig_number}_cam2proj.npy')}")
     return proj2cam, cam2proj
 
+def save_centers(centered_pt, centered_theta, rig_number):
+    parent_path = Path(sys.executable).parents[0].joinpath(r'Lib\site-packages\pandastim\resources\params')
+    np.save(parent_path.joinpath(f'rig_{rig_number}_centers.npy'), [centered_pt[0], centered_pt[1], centered_theta])
+
+def load_centers(rig_number):
+    parent_path = Path(sys.executable).parents[0].joinpath(r'Lib\site-packages\pandastim\resources\params')
+    centers = np.load(parent_path.joinpath(f'rig_{rig_number}_centers.npy'))
+    return (centers[0], centers[1]), centers[2]
 
 def calibrator(input_socket, point_dump):
     context = zmq.Context()
