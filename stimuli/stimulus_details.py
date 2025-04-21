@@ -366,7 +366,6 @@ def legacy2current_singlestim(
     import inspect
 
     stimDict = dict(stim_df)
-    print(f'STIMDICT {stimDict}')
     if type(stimDict['stim_type']) == list:  # masked
         stimulus = []
         for stim_i in range(len(stimDict['stim_type'])):

@@ -70,6 +70,7 @@ class TextureBase(ABC):
                 Texture.F_rgb8,
             )
             self.texture.setRamImageAs(self.texture_array, "RGB")
+
     @abstractmethod
     def create_texture(self) -> None:
         """
@@ -290,7 +291,7 @@ class GratingRgbTex(TextureBase):
 
     def __init__(
         self,
-        color=(255, 0, 0),
+        color=(125, 0, 0),
         frequency=10,
         texture_name="grating_rgb",
         *args,
@@ -319,6 +320,7 @@ class GratingRgbTex(TextureBase):
         B = np.uint8(
             (self.color[2] / 255) * utils.grating_byte(array, freq=self.frequency)
         )
+
         rgb_grating = np.zeros(
             (self.texture_size[1], self.texture_size[0], 3), dtype=np.uint8
         )
