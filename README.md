@@ -2,7 +2,7 @@
 <img align = "right" width = "120" src=".\resources\omr_sin_example.png ">
 
 
-###  Live exists as fake "static typing" and requires python 3.10+, now running on behavior rigs
+###  Live exists as fake "static typing" and requires python 3.10+, enabled on behavior rigs with freely swimming eye tracking
 
 
 
