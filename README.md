@@ -2,7 +2,7 @@
 <img align = "right" width = "120" src=".\resources\omr_sin_example.png ">
 
 
-###  Live exists as fake "static typing" and requires python 3.10+, enabled on behavior rigs with freely swimming eye tracking
+###  Live exists as fake "static typing" and requires python 3.10+, enabled on behavior rigs with freely swimming eye tracking and SVS camera
 
 
 
@@ -26,3 +26,6 @@ To test the installation, try running one of the examples in [examples/)
 ### Stytra Requirement
 Adapted Stytra from the Vilim Štih et al. @portugueslab
 Modified Stytra included in the stytra folder, but needs to be moved outside of the pandastim folder when installed
+
+### SVS Camera requirement
+need to install the svs camera SDK
