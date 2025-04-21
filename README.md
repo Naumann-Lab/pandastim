@@ -2,8 +2,7 @@
 <img align = "right" width = "120" src=".\resources\omr_sin_example.png ">
 
 
-###  Legacy pandastim runs sans-stimbuddy on behavior rigs and such
-###  Live exists as fake "static typing" and requires python 3.10+
+###  Live exists as fake "static typing" and requires python 3.10+, now running on behavior rigs
 
 
 
@@ -24,4 +23,6 @@ Once you've got your environment squared away, you can install pandastim by head
 To test the installation, try running one of the examples in [examples/)
 
 
-### new updates here
+### Stytra Requirement
+Adapted Stytra from the Vilim Štih et al. @portugueslab
+Modified Stytra included in the stytra folder, but needs to be moved outside of the pandastim folder when installed
