@@ -321,6 +321,67 @@ class StytraBuddy(StimulusBuddy):
                     )
 
 
+class BrukerBuddy(StimulusBuddy):
+    def __init__(self, comms, params_path, protocol, stimuli, *args, **kwargs):
+        super().__init__(comms = comms, default_params_path= params_path, *args, **kwargs)
+
+        self.protocol_buddy_sub = utils.Subscriber(port=comms['protocol_buddy_socket'])#talking to protocol
+        self.buddy_stimulus_pub = utils.Publisher(port = comms['buddy_stimulus_socket'])#talking to stimulus
+        self.stytraThreadList = [tr.Thread(target=protocol, args=(comms, self.default_params, stimuli)),
+                                 tr.Thread(target=self.msg_reception)]
+        self.updating = False #use to track stimulus update command from protocol
+        self.updating_info = None
+        for thread in self.stytraThreadList:
+            thread.start()
+
+    def set_updating(self, updating_info):
+        """change updating status to True so the stimulus will start updating, and also pass the updating info"""
+        self.updating = True
+        self.updating_info = updating_info
+
+    def request_updating(self):
+        """Let the stimulus to request the current updating status"""
+        return self.updating, self.updating_info
+
+    def msg_reception(self):
+        self.centering = False
+        self.updating = False  # assuming not updating
+        while self._running:
+            topic = self.protocol_buddy_sub.socket.recv_string()
+            data = self.protocol_buddy_sub.socket.recv_pyobj()
+            match topic:
+                case "calibration_stimulus":#when receiving calibration stimulus
+                    if data:#if data is True, make calibration signal the first stimulus
+                        cali_params = utils.get_calibration_params()
+                        if cali_params is None:
+                            texture = textures.CalibrationTriangles()
+                        else:
+                            texture = textures.CalibrationTriangles(
+                                texture_size=self.default_params['window_size'],
+                                tri_size=cali_params['tri_size'],circle_radius=cali_params['circle_radius'],
+                                x_offset=cali_params['x_off'], y_offset=cali_params['y_off'])
+                        input_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'calibration',
+                            texture=texture, velocity=0., angle=0)
+                        self.append_queue(input_stimulus)
+                    elif not data:#if data is False (clicked the botton again), turn off the calibration signal and add in blank
+                        blank_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'pet turtle',
+                                                                                   texture = textures.BlankTex(),
+                                                                                   velocity=0., angle=0)
+                        self.append_queue(blank_stimulus)#called it pet turtle because turtles are like rocks
+                case "stimulus":
+                    data = stimulus_details.legacy2current_singlestim(data,
+                                                           light_value = self.default_params['light_value'],
+                                                           dark_value=self.default_params['dark_value'],
+                                                           frequency = self.default_params['frequency'],
+                                                           texture_size=self.default_params['window_size'])
+                    self.append_queue(data)
+                case "stimulus_update":
+                    self.set_updating(data)
+                case _:
+                    print(
+                        f"{topic} --  not understood, failed"
+                    )
+
 class AligningStimBuddy(StimulusBuddy):
     """
 
