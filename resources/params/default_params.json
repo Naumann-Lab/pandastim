@@ -1,1 +1,24 @@
-{"scale": 8, "rotation_offset": 90, "window_size": [1000, 1000], "window_position": [4025, 100], "fps": 60, "window_undecorated": false, "center": [0, 0], "window_foreground": true, "window_title": "Pandastim", "profile_on": false, "projecting_fish":  false, "hold_onfinish":  true, "publish_port": 5010}
+{
+    "scale": 8,
+    "rotation_offset": 90,
+    "window_size": [
+        1000,
+        1000
+    ],
+    "window_position": [
+        4025,
+        100
+    ],
+    "fps": 60,
+    "window_undecorated": false,
+    "center": [
+        0,
+        0
+    ],
+    "window_foreground": true,
+    "window_title": "Pandastim",
+    "profile_on": false,
+    "projecting_fish": false,
+    "hold_onfinish": true,
+    "publish_port": 5010
+}
