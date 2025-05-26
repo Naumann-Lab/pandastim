@@ -708,7 +708,7 @@ class BehaviorStimulus(SequencingWithPause):
                 texture = textures.BlankTex(),  velocity=0., angle=0)
         elif self.default_params["centering_stimulus"] == "phototaxis":
             self.current_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'pet turtle',
-                texture = textures.CircleGrayTex(circle_radius = 50),  velocity=0., angle=0)
+                texture = textures.CircleRGBTex(circle_radius = 150),  velocity=0., angle=0)
         else:
             print("centering stimulus not understood")
         self.radial_index += 1
@@ -720,24 +720,6 @@ class BehaviorStimulus(SequencingWithPause):
         return radial_task.cont
 
     def set_monocular(self):
-        # cardmaker = CardMaker("stimcard")
-        # cardmaker.setFrameFullscreenQuad()
-        #
-        # # create tex stage
-        # self.texture_stage = TextureStage("texture_stage")
-        #
-        # # create card
-        # self.card = self.aspect2d.attachNewNode(cardmaker.generate())
-        # self.card.setScale(self.scale)
-        # self.card.setColor((1, 1, 1, 1))
-        # self.card.setTexture(self.texture_stage, self.current_stimulus.texture.texture)
-        # #MATT OG WORKING CODES
-        # self.card.setTexRotate(
-        #    self.texture_stage,
-        #    self.current_stimulus.angle + self.default_params["rotation_offset"],
-        # )
-        # self.card.setTexPos(self.texture_stage, self.center_x, self.center_y, 0)
-
         #PLAYGROUND
         tex = self.current_stimulus.texture.texture
 
@@ -783,9 +765,6 @@ class BehaviorStimulus(SequencingWithPause):
             self.card.setTexTransform(
                 self.texture_stage, self.stage_transform
             )
-            # self.card.setTexPos(
-            #     self.texture_stage, self.new_position + self.center_x, self.center_y, 0
-            # )  # u, v, w
         return move_monocular_task.cont
 
     def set_binocular(self):

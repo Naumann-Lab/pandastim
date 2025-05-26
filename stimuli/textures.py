@@ -191,6 +191,66 @@ class CircleGrayTex(TextureBase):
             f"bg:{self.bg_intensity} fg:{self.fg_intensity}"
         )
 
+class CircleRGBTex(TextureBase):
+    """
+    Filled circle: grayscale on grayscale with circle_radius, centered at circle_center
+    with face color fg_intensity on background bg_intensity. Center position is in pixels
+    from center of image.
+    """
+
+    def __init__(
+        self,
+        circle_center=(0, 0),
+        circle_radius=1,
+        bg_color = (0, 0, 0),#black background
+        fg_color= (255, 0,0),#red dot
+        texture_name="rgb_circle",
+        *args,
+        **kwargs,
+    ):
+        self.circle_center = circle_center#circle_center
+        self.circle_radius = circle_radius
+        self.bg_color = bg_color
+        self.fg_color = fg_color
+        super().__init__(texture_name=texture_name, *args, **kwargs)
+
+    def create_texture(self) -> np.array:
+        if not (
+                all([x >= 0 for x in self.fg_color]) and all([x <= 255 for x in self.fg_color])
+                and all([x >= 0 for x in self.bg_color]) and all([x <= 255 for x in self.bg_color])
+        ):
+            raise ValueError(
+                "CircleRGBTex: rgb values must lie in [0,255]"
+            )
+
+        x = np.linspace(
+            -self.texture_size[0] / 2, self.texture_size[0] / 2, self.texture_size[0]
+        )
+        y = np.linspace(
+            -self.texture_size[1] / 2, self.texture_size[1] / 2, self.texture_size[1]
+        )
+        X, Y = np.meshgrid(x, y)
+
+        circle_texture =  np.zeros(
+            (self.texture_size[0], self.texture_size[1], 3), dtype=np.uint8
+        )
+        circle_texture[..., 0] = self.bg_color[0]
+        circle_texture[..., 1] = self.bg_color[1]
+        circle_texture[..., 2] = self.bg_color[2]
+
+        circle_mask = (X - self.circle_center[0]) ** 2 + (Y - self.circle_center[1]) ** 2 <= self.circle_radius**2
+
+        circle_texture[circle_mask, 0] = self.fg_color[0]
+        circle_texture[circle_mask, 1] = self.fg_color[1]
+        circle_texture[circle_mask, 2] = self.fg_color[2]
+        return np.uint8(circle_texture)
+
+    def __str__(self) -> str:
+        return (
+            f"{type(self).__name__} size:{self.texture_size} center:{self.circle_center} radius:{self.circle_radius} "
+            f"bg:{self.bg_intensity} fg:{self.fg_intensity}"
+        )
+
 
 class SinGrayTex(TextureBase):
     """
