@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 parameter_path = Path(sys.executable).parents[0].joinpath(r'Lib\site-packages\pandastim\resources\params\rig_params.json')
-stimulus_path = Path(sys.executable).parents[0].joinpath(r'Lib\site-packages\pandastim\resources\protocols\overlap_stim.hdf')
+stimulus_path = Path(sys.executable).parents[0].joinpath(r'Lib\site-packages\pandastim\resources\protocols\overlap_stim_250430.hdf')
 
 def wrapper(protocol, stimulus_dataframe_path, ports, params, parameter_path):
     """
@@ -32,10 +32,10 @@ def wrapper(protocol, stimulus_dataframe_path, ports, params, parameter_path):
                              params_path =parameter_path,
                               protocol = protocol,
                               stimuli = stimulus_dataframe)  # start with pausing until Go, get stytra position output
-    pstim = stimulus.BehaviorStimulus(buddy=stytraBuddy, params_path=parameter_path, buddy_port = ports['buddy_stimulus_socket'],
-                                      rad_stack=rad_stack)
+    pstim = stimulus.BehaviorStimulus(buddy=stytraBuddy, params_path=parameter_path, buddy_port = ports['buddy_stimulus_socket'], rad_stack = rad_stack)
 
     pstim.run()
+
 
 if __name__ == '__main__':
 
@@ -52,15 +52,12 @@ if __name__ == '__main__':
         savedir = params['save_path']
 
         stytra_process = mp.Process(target=stytra_container, args=(_ports, camera_rot, roi, savedir,))
-        stimulus_process = mp.Process(target=wrapper, args=(ClosedLoopProtocol, stimulus_path, _ports, params, parameter_path))
-
-
-        stimulus_process.start()
+        if params['pstim']:
+               stimulus_process = mp.Process(target=wrapper, args=(ClosedLoopProtocol, stimulus_path, _ports, params, parameter_path))
+               stimulus_process.start()
         stytra_process.start()
-
         stytra_process.join()
-
-        if not stytra_process.is_alive():
-               stimulus_process.terminate()
-               stimulus_process.join()
-
+        if params['pstim']:
+                if not stytra_process.is_alive():
+                        stimulus_process.terminate()
+                        stimulus_process.join()
