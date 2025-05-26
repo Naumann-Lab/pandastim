@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 from numba import jit, int64, float64
+from skimage import data, filters, color
+
 try:
     from numba.experimental import jitclass
 except ModuleNotFoundError:
@@ -81,9 +83,9 @@ class FishEyeTrackingMethod(ImageToDataNode):
             persist_fish_for=self._params.persist_fish_for,
         )
 
+
     def _eyeprocess(self, im, theta, border_margin,
         wnd_pos: Param((129, 20), gui=False),
-        threshold: Param(56, limits=(1, 254)),
         wnd_dim: Param((14, 22), gui=False),
         ** extraparams
         ):
@@ -97,8 +99,6 @@ class FishEyeTrackingMethod(ImageToDataNode):
             the heading angle of the fish
         win_dim :
             dimension of the window on the eyes (w, h);
-        threshold :
-            threshold for ellipse fitting (int).
 
         Returns
         -------
@@ -127,7 +127,12 @@ class FishEyeTrackingMethod(ImageToDataNode):
         M_inv = cv2.invertAffineTransform(M)
         # Rotate the cropped image
         rotated_im = cv2.warpAffine(im_up, M, (new_w, new_h), flags=cv2.INTER_LINEAR, borderValue=0)
-        #only above the tail start points get procesed
+        # Only use the top 1/3 of the rotated image
+        #(h_rot, w_rot) = rotated_im.shape
+        #cropped_rotated_im = rotated_im[:, :h_rot//3]
+
+        threshold = thresholding(rotated_im, 99)
+
         cropped = _pad(
             (
                   rotated_im
@@ -301,7 +306,6 @@ class FishEyeTrackingMethod(ImageToDataNode):
 
             eyemessage, e, eye_cropped = self._eyeprocess(bg.copy(), theta,border_margin,
                                                           [ftop - border_margin, fleft - border_margin],
-                                                          threshold_eyes,
                                                           [fheight + 2 * border_margin, fwidth + 2 * border_margin])
             messages.append(eyemessage)
 
@@ -644,8 +648,14 @@ def _fit_ellipse(thresholded_image):
 
     if len(contours) >= 2:
 
-        # Get the two largest ellipses (i.e. the eyes, and the swim bladder, not any dirt)
-        contours = sorted(contours, key=lambda c: c.shape[0], reverse=True)[:3]
+        # Get the 4 largest ellipses (i.e. the eyes, and the swim bladder, not any dirt), account for miscounted swimbladder
+        try:
+            contours = sorted(contours, key=lambda c: c.shape[0], reverse=True)[:4]
+        except:
+            try:
+                contours = sorted(contours, key=lambda c: c.shape[0], reverse=True)[:3]
+            except:
+                contours = sorted(contours, key=lambda c: c.shape[0], reverse=True)[:2]
         # Sort them that first ellipse is always the left eye (in the image): partially chat gpt
         contours = sorted(contours, key=lambda c: cv2.boundingRect(c)[0])[:2]
 
@@ -661,3 +671,37 @@ def _fit_ellipse(thresholded_image):
     else:
         # Not at least two eyes + maybe dirt found...
         return False
+
+def autoscale_image(image, target_type=np.uint8):
+        """Autoscales the color range of a NumPy image.
+
+        Args:
+            image (np.ndarray): The input image.
+            target_type (np.dtype): The desired data type for the output image.
+
+        Returns:
+            np.ndarray: The autoscaled image.
+        """
+        min_val = np.min(image)
+        max_val = np.max(image)
+
+        if min_val == max_val:
+            return np.full_like(image,
+                                fill_value=np.iinfo(target_type).max if np.issubdtype(target_type, np.integer) else 1.0,
+                                dtype=target_type)
+
+        if np.issubdtype(image.dtype, np.floating):
+            scaled_image = (image - min_val) / (max_val - min_val)
+        else:
+            scaled_image = ((image - min_val) / (max_val - min_val) * np.iinfo(target_type).max).astype(target_type)
+        return scaled_image
+
+def thresholding(image: np.ndarray, threshold: int):
+    """Compute Shanbhag threshold for a grayscale image."""
+    # Ensure image is in uint8 format
+    #if image.dtype != np.uint8:
+    #    image = (255 * image).astype(np.uint8)
+
+    image_flat = image.flatten()
+    threshold = np.quantile(image_flat, threshold * 0.01)
+    return threshold
