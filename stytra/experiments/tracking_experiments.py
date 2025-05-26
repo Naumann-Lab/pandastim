@@ -224,7 +224,7 @@ class TrackingExperiment(CameraVisualExperiment):
             processing_parameter_queue=self.processing_params_queue,
             output_queue=self.tracking_output_queue,
             recording_signal=self.recording_event,
-            gui_framerate=200,
+            gui_framerate=600,
         )
         if self.pipeline_cls is None:
             raise NameError("The selected tracking method does not exist!")
