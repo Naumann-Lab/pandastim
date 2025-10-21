@@ -326,9 +326,15 @@ class BrukerBuddy(StimulusBuddy):
         super().__init__(comms = comms, default_params_path= params_path, *args, **kwargs)
 
         self.protocol_buddy_sub = utils.Subscriber(port=comms['protocol_buddy_socket'])#talking to protocol
+        self.buddy_protocol_pub = utils.Publisher(port=comms['buddy_protocol_socket'])#talking to protocol
         self.buddy_stimulus_pub = utils.Publisher(port = comms['buddy_stimulus_socket'])#talking to stimulus
+        self.alignment_buddy_sub = utils.Subscriber(port='7979')
+        #self.buddy_alignment_pub = utils.Subscriber(port='5021')
+
+        #self.alignment_sub = utils.Subscriber(prot = comms['protocol_buddy_socket'])
         self.stytraThreadList = [tr.Thread(target=protocol, args=(comms, self.default_params, stimuli)),
-                                 tr.Thread(target=self.msg_reception)]
+                                 tr.Thread(target=self.msg_reception),
+                                 tr.Thread(target=self.alignment_reception)]
         self.updating = False #use to track stimulus update command from protocol
         self.updating_info = None
         for thread in self.stytraThreadList:
@@ -343,9 +349,23 @@ class BrukerBuddy(StimulusBuddy):
         """Let the stimulus to request the current updating status"""
         return self.updating, self.updating_info
 
+    def alignment_reception(self):
+        """This function keeps runing in the background to receive messages from the alignment"""
+        while self._running:
+            try:#also talk to alignment
+                alignment = self.alignment_buddy_sub.socket.recv_string(flags=zmq.NOBLOCK)
+                self.alignmentpause = self.alignment_buddy_sub.socket.recv_pyobj(flags=zmq.NOBLOCK)# if pause, it will give an object
+                self.buddy_protocol_pub.socket.send_string('pause_status')
+                self.buddy_protocol_pub.socket.send_pyobj(self.alignmentpause)#'unpause'
+                print('alignment done, next imaging starts, unpause stimulus')
+            except zmq.Again:
+                # Nothing received this time, following previous status
+                pass
+
     def msg_reception(self):
         self.centering = False
         self.updating = False  # assuming not updating
+        
         while self._running:
             topic = self.protocol_buddy_sub.socket.recv_string()
             data = self.protocol_buddy_sub.socket.recv_pyobj()
@@ -361,20 +381,25 @@ class BrukerBuddy(StimulusBuddy):
                                 tri_size=cali_params['tri_size'],circle_radius=cali_params['circle_radius'],
                                 x_offset=cali_params['x_off'], y_offset=cali_params['y_off'])
                         input_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'calibration',
-                            texture=texture, velocity=0., angle=0)
+                            texture=texture, velocity=0., angle=0, angular_velocity = 0.)
                         self.append_queue(input_stimulus)
                     elif not data:#if data is False (clicked the botton again), turn off the calibration signal and add in blank
                         blank_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'pet turtle',
                                                                                    texture = textures.BlankTex(),
-                                                                                   velocity=0., angle=0)
+                                                                                   velocity=0., angle=0,
+                                                                                   angular_velocity = 0.)
                         self.append_queue(blank_stimulus)#called it pet turtle because turtles are like rocks
                 case "stimulus":
-                    data = stimulus_details.legacy2current_singlestim(data,
+                    if data.stim_name == 'pause':
+                        self.buddy_protocol_pub.socket.send_string('pause_status')
+                        self.buddy_protocol_pub.socket.send_pyobj('pause')
+                    else:
+                        data = stimulus_details.legacy2current_singlestim(data,
                                                            light_value = self.default_params['light_value'],
                                                            dark_value=self.default_params['dark_value'],
                                                            frequency = self.default_params['frequency'],
                                                            texture_size=self.default_params['window_size'])
-                    self.append_queue(data)
+                        self.append_queue(data)
                 case "stimulus_update":
                     self.set_updating(data)
                 case _:
