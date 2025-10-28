@@ -69,7 +69,7 @@ class TextureBase(ABC):
                 Texture.T_unsigned_byte,
                 Texture.F_rgb8,
             )
-            self.texture.setRamImageAs(self.texture_array, "RGB")
+            self.texture.setRamImageAs(self.texture_array, "RGBA")
 
     @abstractmethod
     def create_texture(self) -> None:
@@ -153,8 +153,8 @@ class CircleGrayTex(TextureBase):
         self,
         circle_center=(0, 0),
         circle_radius=1,
-        bg_intensity=0,
-        fg_intensity=255,
+        bg_intensity=0,#white background: 100; black background: 0
+        fg_intensity=255,#black circle: 0; white circle: 255
         texture_name="gray_circle",
         *args,
         **kwargs,
@@ -163,12 +163,14 @@ class CircleGrayTex(TextureBase):
         self.circle_radius = circle_radius
         self.bg_intensity = bg_intensity
         self.fg_intensity = fg_intensity
+        
         super().__init__(texture_name=texture_name, *args, **kwargs)
 
     def create_texture(self) -> np.array:
+        print('red on black')
         if self.fg_intensity > 255 or self.bg_intensity < 0:
             raise ValueError("Circle intensity must lie in [0, 255]")
-
+    
         x = np.linspace(
             -self.texture_size[0] / 2, self.texture_size[0] / 2, self.texture_size[0]
         )
@@ -181,8 +183,10 @@ class CircleGrayTex(TextureBase):
             (self.texture_size[0], self.texture_size[1]), dtype=np.uint8
         )
         circle_mask = (X - self.circle_center[0]) ** 2 + (Y - self.circle_center[1]) ** 2 <= self.circle_radius**2
-
+        
         circle_texture[circle_mask] = self.fg_intensity
+        if self.circle_radius < 1:
+            circle_texture[self.texture_size[0] // 2 , self.texture_size[1] // 2] = self.fg_intensity
         return np.uint8(circle_texture)
 
     def __str__(self) -> str:
@@ -291,14 +295,16 @@ class GratingRgbTex(TextureBase):
 
     def __init__(
         self,
-        color=(125, 0, 0),
+        color=(255, 0, 0),#white strips: 255, 255, 255, red stripes: 255, 0, 0
         frequency=10,
         texture_name="grating_rgb",
+        bg_color = (0, 0, 0),#black background:0, 0, 0, grey background: 150, 150, 150
         *args,
         **kwargs,
     ):
         self.frequency = frequency
         self.color = color
+        self.bg_color = bg_color
         super().__init__(texture_name=texture_name, *args, **kwargs)
 
     def create_texture(self) -> np.array:
@@ -311,22 +317,23 @@ class GratingRgbTex(TextureBase):
         x = np.linspace(0, 2 * np.pi, self.texture_size[0] + 1)
         y = np.linspace(0, 2 * np.pi, self.texture_size[1] + 1)
         array, Y = np.meshgrid(x[: self.texture_size[0]], y[: self.texture_size[1]])
-        R = np.uint8(
-            (self.color[0] / 255) * utils.grating_byte(array, freq=self.frequency)
-        )
-        G = np.uint8(
-            (self.color[1] / 255) * utils.grating_byte(array, freq=self.frequency)
-        )
-        B = np.uint8(
-            (self.color[2] / 255) * utils.grating_byte(array, freq=self.frequency)
-        )
-
-        rgb_grating = np.zeros(
-            (self.texture_size[1], self.texture_size[0], 3), dtype=np.uint8
-        )
+        R = utils.grating_byte(array, freq=self.frequency)
+        G = utils.grating_byte(array, freq=self.frequency)
+        B = utils.grating_byte(array, freq=self.frequency)
+        rgb_grating = np.full(
+            (self.texture_size[1], self.texture_size[0], 4), 0, dtype=np.uint8
+        )#assign a weird number as identifier
+        print(np.unique(G), np.unique(B), np.unique(R))
+        R[R == 0] = self.bg_color[0]
+        G[G == 0] = self.bg_color[1]
+        B[B == 0] = self.bg_color[2]
+        R[R == 255] = self.color[0]
+        G[G == 255] = self.color[1]
+        B[B == 255] = self.color[2]
         rgb_grating[..., 0] = R
         rgb_grating[..., 1] = G
         rgb_grating[..., 2] = B
+        rgb_grating[..., 3] = 1 #not transparent
         return rgb_grating
 
     def __str__(self) -> str:
@@ -374,10 +381,10 @@ class CalibrationTriangles(TextureBase):
             int((self.midx + self.x_offset - (self.tri_size * math.sqrt(3)) // 2)),
             int((self.midy + self.y_offset - self.tri_size // 2)),
         )
-        circle_texture = np.zeros((self.texture_size[1], self.texture_size[0]))
+        circle_texture = np.full((self.texture_size[1], self.texture_size[0]), 255)
 
         [
-            cv2.circle(circle_texture, i, self.circle_radius, 255, -1)
+            cv2.circle(circle_texture, i, self.circle_radius, 0, -1)
             for i in [self.pt1, self.pt2, self.pt3]
         ]
         return np.uint8(circle_texture)
@@ -409,3 +416,57 @@ class RadialSinCube(TextureBase):
 
     def __str__(self) -> str:
         return f"{type(self).__name__} size:{self.texture_size} period:{self.period} phase: {self.phase}"
+    
+
+class SunBurst_GrayTex(TextureBase):
+    """
+    Grayscale 2d sunburst gratings
+    """
+    def __init__(
+        self,
+        frequency=10,
+        light_value=255,
+        dark_value=0,
+        texture_name="sunburst_gray",
+        *args,
+        **kwargs,
+    ):
+        self.frequency = frequency
+        self.dark_value = dark_value
+        self.light_value = light_value
+        super().__init__(texture_name=texture_name, *args, **kwargs)
+
+    def create_texture(self) -> np.array:
+        #@chat gpt
+        # Create a grid of coordinates (X, Y)
+        x = np.linspace(-self.texture_size[1] / 2, self.texture_size[1] / 2, self.texture_size[1])
+        y = np.linspace(-self.texture_size[0] / 2, self.texture_size[0] / 2, self.texture_size[0])
+        X, Y = np.meshgrid(x, y)
+
+        # Calculate the radial distance from the center
+        r = np.sqrt(X**2 + Y**2)
+
+        # Compute the angle of each point from the center (in polar coordinates)
+        theta = np.arctan2(Y, X) + np.pi
+
+        # Normalize the radius to [0, 1] range for visual purposes
+        r_normalized = np.clip(r / (self.texture_size[0] / 2), 0, 1)
+
+        # Initialize the grating pattern
+        tex = np.zeros_like(r_normalized)
+
+        # Create bars by making the intensity high for certain angular ranges
+        for i in range(self.frequency):
+            # Define the angular range for the "bar"
+            lower_bound = (i / self.frequency) * 2 * np.pi
+            upper_bound = ((i + 0.5) / self.frequency) * 2 * np.pi
+
+            # Create the grating by setting a value for angles within the bar range
+            tex += np.where((theta >= lower_bound) & (theta < upper_bound), self.light_value, self.dark_value)
+
+        return np.uint8(tex)
+
+    def __str__(self) -> str:
+        return (
+            f"{type(self).__name__} size:{self.texture_size} frequency:{self.frequency}"
+        )

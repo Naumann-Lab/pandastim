@@ -26,6 +26,7 @@ class MonocLite(StimulusDetails):
 
     angle: int = 0
     velocity: float = 0.0
+    angular_velocity: float = 0.0
     frequency: int = 60
     stationary_time: int = 0
     duration: int = -1  # defaults to going forever
@@ -76,6 +77,7 @@ class BinocLite(StimulusDetails):
 
     angle: tuple = (0, 0)
     velocity: tuple = (0.0, 0.0)
+    angular_velocity: tuple = (0.0, 0.0)
     stationary_time: tuple = (0.0, 0.0)
     duration: tuple = (-1.0, -1.0)  # defaults to going forever
     hold_after: tuple = (np.nan, np.nan)
@@ -138,6 +140,7 @@ class MonocularStimulusDetails(StimulusDetails):
     # required
     angle: int = 0
     velocity: float = 0.0
+    angular_velocity: float = 0.0
 
     # defaults
     stationary_time: int = 0
@@ -153,6 +156,7 @@ class MonocularStimulusDetails(StimulusDetails):
         "stim_name": str,
         "angle": int,
         "velocity": float,
+        "angular_velocity": float,
         "stationary_time": int,
         "duration": int,
         "hold_after": float,
@@ -186,12 +190,13 @@ class BinocularStimulusDetails(StimulusDetails):
     # required
     angle: tuple = (0, 0)
     velocity: tuple = (0.0, 0.0)
+    angular_velocity: tuple = (0.0, 0.0)
 
     # defaults
     stationary_time: tuple = (0, 0)
-    duration: tuple = (-1, -1)  # defaults to going forever
+    duration: tuple = (-1, -1)  # desfaults to going forever
     hold_after: tuple = (np.nan, np.nan)
-    strip_width: int = 8
+    strip_width: int = 20
     position: tuple = (0, 0)
     strip_angle: int = 0
 
@@ -205,6 +210,7 @@ class BinocularStimulusDetails(StimulusDetails):
         "stim_name": str,
         "angle": tuple,
         "velocity": tuple,
+        "angular_velocity": tuple,
         "stationary_time": tuple,
         "hold_after": tuple,
         "duration": tuple,
@@ -241,6 +247,7 @@ class MaskedStimulusDetails(StimulusDetails):
     # required
     angle: int = 0
     velocity: float = 0.0
+    angular_velocity: float  = 0.0
 
     # defaults
     stationary_time: int = 0
@@ -258,6 +265,7 @@ class MaskedStimulusDetails(StimulusDetails):
         "stim_name": str,
         "angle": int,
         "velocity": float,
+        "angular_velocity": float,
         "stationary_time": int,
         "hold_after": float,
         "duration": int,
@@ -360,11 +368,10 @@ def legacy2current(stim_df, tex="grating_gray", duration=15, stationary_time=10)
     return stimSequence
 
 def legacy2current_singlestim(
-    stim_df, tex="grating_gray", frequency=32, duration=15, stationary_time=10, texture_size = 4096,
+    stim_df, tex="grating_gray", frequency=32, duration=15, stationary_time=10, texture_size = 1024,
     dark_value = 0, light_value = 255):
     """for a single stimuli. legacy: dataframe format; current: stimulus_details format"""
     import inspect
-
     stimDict = dict(stim_df)
     if type(stimDict['stim_type']) == list:  # masked
         stimulus = []
@@ -375,6 +382,7 @@ def legacy2current_singlestim(
             single_stim_df = pd.Series({'stim_name': stimDict['stim_name'][stim_i],
                                            'angle': stimDict['angle'][stim_i],
                                            'velocity': stimDict['velocity'][stim_i],
+                                           'angular_velocity': stimDict['angular_velocity'][stim_i],
                                            'stim_type': stimDict['stim_type'][stim_i],
                                            'stationary_time': stimDict['stationary_time'][stim_i],
                                            'duration': stimDict['duration'],
@@ -417,6 +425,7 @@ def legacy2current_singlestim(
             stimulus = BinocularStimulusDetails(texture=createdTextures, **detail_dict)
         elif stimDict['stim_type'] == 's':
             stimDict["velocity"] = float(stimDict["velocity"])
+            stimDict["angular_velocity"] = float(stimDict["angular_velocity"])
             stimDict["duration"] = int(stimDict["duration"])
             stimDict["angle"] = int(stimDict["angle"])
             stimDict["stationary_time"] = int(stimDict["stationary_time"])
@@ -431,6 +440,7 @@ def legacy2current_singlestim(
             stimulus = MonocularStimulusDetails(texture=createdTexture, **detail_dict)
         elif stimDict['stim_type'] == 'm':
             stimDict["velocity"] = float(stimDict["velocity"])
+            stimDict["angular_velocity"] = float(stimDict["angular_velocity"])
             stimDict["duration"] = int(stimDict["duration"])
             stimDict["angle"] = int(stimDict["angle"])
             stimDict["stationary_time"] = int(stimDict["stationary_time"])
