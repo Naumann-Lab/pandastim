@@ -12,13 +12,12 @@ import time
 import os
 import json
 import sys
-import pandas as pd
 
 from direct.showbase import DirectObject
 from direct.showbase.MessengerGlobal import messenger
 
-
 from scipy import signal
+import pandas as pd
 from datetime import datetime as dt
 from pathlib import Path
 
@@ -165,6 +164,7 @@ def createTexture(input_tex_dict: dict):
         "blank_tex": textures.BlankTex,
         "circs": textures.CalibrationTriangles,
         "radial_sin_centering": textures.RadialSinCube,
+        "sunburst_gray": textures.SunBurst_GrayTex
     }
     texFxn = texture_map_dict[input_tex_dict["texture_name"]]
 
@@ -174,7 +174,6 @@ def createTexture(input_tex_dict: dict):
         if k in list(inspect.signature(texFxn).parameters)
         or k in list(inspect.signature(textures.TextureBase).parameters)
     }
-    print(tex_dict)
     return texFxn(**tex_dict)
 
 
@@ -499,7 +498,8 @@ def img_receiver(socket, ):
     msg = socket.recv()
     _img = np.frombuffer(bytes(memoryview(msg)), dtype=msg_dict['dtype'])
     img = _img.reshape(msg_dict['shape'])
-    return np.array(img)
+    img = np.array(img)#.T.copy()
+    return img
 
 
 def reduce_to_pi(ar):
@@ -550,17 +550,21 @@ def create_radial_sin(texture_size):
         phase += phase_change
     return stack
 
-def dot_generator(dot_name, dot_side, dot_size_deg, x_offset_px, y_offset_px, velocity_deg, canvas_size, stationary_time, duration):
+def dot_generator(dot_name, dot_side, dot_size_deg, x_offset_deg, y_offset_px, velocity_deg, canvas_size, stationary_time, duration):
+    
+    dot_radius_px = np.tan(np.deg2rad(dot_size_deg)) * y_offset_px * 0.5 #for radius not diameter
+    x_offset_px = - np.tan(np.deg2rad(x_offset_deg)) * y_offset_px
+    dot_velocity_perc_canvas = np.abs(np.tan(np.deg2rad(velocity_deg))) * y_offset_px / canvas_size
+
     if dot_side == 'left':
         dot_angle = 90
-    elif dot_site == 'right':
+    elif dot_side == 'right':
         dot_angle = -90
-    dot_radius_px = np.tan(np.deg2rad(dot_size_deg)) * y_offset_px * 0.5 #for radius not diameter
-    dot_velocity_perc_canvas = np.tan(np.deg2rad(velocity_deg)) * y_offset_px / canvas_size
+        y_offset_px = -y_offset_px
     dot = {'stim_name': [dot_name], 'angle': [dot_angle], 'velocity': [dot_velocity_perc_canvas],
                    'stim_type': ['s'], 'stationary_time': [stationary_time], 'duration': [duration],
                    'texture': ['gray_circle'], 'circle_center': [[x_offset_px, y_offset_px]],
-                   'circle_radius': [dot_radius_px]}
+                   'circle_radius': [dot_radius_px], 'angular_velocity': [0]}
     dot = pd.DataFrame.from_dict(dot)
     return dot
 
