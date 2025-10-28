@@ -318,11 +318,17 @@ class ExternalCameraDisplay_embed(TailTrackingSelection):
             # Check for data to be displayed:
             # Retrieve tail angles from tail
            
-            angles = [
+            try:
+                angles = [
                 getattr(retrieved_data, "theta_{:02d}".format(i))
                 for i in range(self.tail_params.n_output_segments)
-            ]
-
+                ]
+            except:
+                angles = [
+                getattr(retrieved_data, "theta_{:02d}".format(i))
+                for i in range(self.tail_params.n_output_segments - 1)
+                ]
+                print('time diff between threads, updating queue...')
             # Get tail position and length from the parameters:
             (start_x, start_y), (tail_len_x, tail_len_y) = self.tail_dims()
             tail_length = np.sqrt(tail_len_x ** 2 + tail_len_y ** 2)
