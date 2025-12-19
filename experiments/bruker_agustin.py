@@ -5,25 +5,18 @@ from pathlib import Path
 import pandas as pd
 import qdarkstyle
 from PyQt5.Qt import QApplication
-from scopeslip import zmqComm
-from scopeslip.gui import alignment_gui
+# from scopeslip import zmqComm
+# from scopeslip.gui import alignment_gui
 from tifffile import imread
 
 from pandastim import utils
 from pandastim.buddies import stimulus_buddies
 from pandastim.stimuli import stimulus
 
-import win32com.client
-import time
-import threading
-import matplotlib.pyplot as plt
-import numpy as np
-from pynput import keyboard
-
 
 def pstimWrapper():
     # EDIT your save path here
-    mySavePath = r"E:\Pstim\pstim_output_kf.txt"
+    mySavePath = r"E:\Agustin\20250416_fish5\pstim_output.txt"
 
     # parameters necessary for ROI to pop up
     # here you can change the size of the ROI, the rotation of the window, location of window, etc
@@ -31,7 +24,7 @@ def pstimWrapper():
     paramspath = (
         Path(sys.executable)
         .parents[0]
-        .joinpath(r"Lib\site-packages\pandastim\resources\params\default_params.json")
+        .joinpath(r"Lib\site-packages\pandastim\resources\params\default_params.json") # most updated in jan 2025
     )
 
     # handles communication with the default parameters necessary to save data
@@ -42,17 +35,21 @@ def pstimWrapper():
         outputMethod="zmq",
         savePath=mySavePath,
     )
-
+# all omr stims file includes shearing stims, faster speeds, randomized each block
     inputStimuli = pd.read_hdf(
         Path(sys.executable)
         .parents[0]
         .joinpath(
-            r"Lib\site-packages\pandastim\resources\protocols\twentyonestim_new.hdf"
+            
+
+             r"Lib\site-packages\pandastim\resources\protocols\forward_speed_tuning.hdf" # different speeds for forward, speed tuning
         )
     )
-    # can augment your pstim file here in any way you want
-    ###CHANGE THIS LATER
-    inputStimuli = inputStimuli.loc[:200]
+
+    inputStimuli["stationary_time"]=30
+    inputStimuli["duration"]=40
+
+    
     # this will generate your stimulus sequence to be sent in the right datastructure
     # DO NOT CHANGE
     stimSequence = utils.generate_stimSequence(inputStimuli)
@@ -69,7 +66,3 @@ if __name__ == "__main__":
     processes = [mp.Process(target=p) for p in _processes]
     [p.start() for p in processes]
     [p.join() for p in processes]
-
-
-# connect to PrairieLink
-

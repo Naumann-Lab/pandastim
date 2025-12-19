@@ -22,3 +22,9 @@ Once you've got your environment squared away, you can install pandastim by head
     git clone https://github.com/Naumann-Lab/pandastim.git
     
 To test the installation, try running one of the examples in [examples/)
+
+
+### Notes on stim protocols
+'all_omr_stims.hdf' - inverted on Bruker scope, 20 unique stims (cardinal, intercard, eye-specific, shearing), spatial freq = 70, speed is 0.025 mm/s
+'sixteenstim.hdf' - need to check if inverted on scope, 14 unique stims (cardinal, intercard, eye-specific)
+'forward_speed_tuning.hdf' - only forward gratings, different speeds, spatial freq = 70, speeds are 0.025, 0.04, 0.055 m/s

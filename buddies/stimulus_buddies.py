@@ -163,7 +163,8 @@ class StimulusBuddy(DirectObject.DirectObject):
         while self._running:
             topic = self.subscriber.socket.recv_string()
             data = self.subscriber.socket.recv_pyobj()
-            # print(topic)
+            print(topic)
+            print(data)
 
             match topic:
                 case "stim":
@@ -329,11 +330,12 @@ class AligningStimBuddy(StimulusBuddy):
             return self.lastReturnedStim
 
     def input(self):
+        print('here')
         print(f"StimulusBuddy listening on {self.subscriber.port}")
         while self._running:
             topic = self.subscriber.socket.recv_string()
+            print(topic)
             data = self.subscriber.socket.recv_pyobj()
-            # print(topic)
 
             match topic:
                 case "stim":
