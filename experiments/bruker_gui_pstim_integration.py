@@ -31,7 +31,6 @@ def pstimWrapper(alignmentPorts):
     pstim_comms = {"topic": "stim", "port": "5006", "ip": r"tcp://10.122.170.169:"}
     # pstim_comms = {"pstim_output": "5010", "pstim_input": "5006"}
 
-
     stimBuddy = stimulus_buddies.AligningStimBuddy(
         reporting="onMotion",
         pstim_comms=pstim_comms,
@@ -94,8 +93,10 @@ def pstimWrapper(alignmentPorts):
     # # DO NOT CHANGE
     # stimSequence = utils.generate_stimSequence(inputStimuli)
     # stimBuddy.queue = stimSequence
-    # pstim = stimulus.ExternalStimulus(buddy=stimBuddy, params_path=paramspath)
-    # pstim.run()
+
+
+    pstim = stimulus.ExternalStimulus(buddy=stimBuddy, params_path=paramspath)
+    pstim.run()
 
 
 

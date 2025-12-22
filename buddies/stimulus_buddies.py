@@ -6,7 +6,6 @@ from datetime import datetime as dt
 from pathlib import Path
 import platform
 
-
 import zmq
 from direct.showbase import DirectObject
 from direct.showbase.MessengerGlobal import messenger
@@ -31,7 +30,7 @@ class StimulusBuddy(DirectObject.DirectObject):
         default_params_path=None,
     ):
 
-
+        # adding in params paths if default is None
         if (platform.system() == "Windows"):
             default_params_path = (
                 Path(sys.executable)
@@ -63,7 +62,7 @@ class StimulusBuddy(DirectObject.DirectObject):
         assert outputMethod in outputMethods, f"{reporting} not in reportingMethods"
         self.outputMethod = outputMethod
         if outputMethod == "zmq":
-            self.publisher = utils.Publisher(
+            self.pstim_publisher = utils.Publisher(
                 port=str(self.default_params["publish_port"])
             )
 
@@ -90,11 +89,12 @@ class StimulusBuddy(DirectObject.DirectObject):
         self.lastReturnedStim = None
 
         self.receipts = receipts
-        self.queue = []
+        self.queue = [] # this a list of stimuli ready to use, helpful when pausing stimuli
 
-        if pstim_comms:
-            self.subscriber = utils.Subscriber(**pstim_comms)
-            self.run_sub = tr.Thread(target=self.input)
+        if pstim_comms: # this is ZMQ set up to subscribe to port for pandastim stimuli
+            # note for this subscriber, topic is always 'stim'
+            self.pstim_subscriber = utils.Subscriber(**pstim_comms)
+            self.run_sub = tr.Thread(target=self.pandastim_input)
             self.run_sub.start()
 
     def pauseStatus(self, pause_status):
@@ -127,6 +127,11 @@ class StimulusBuddy(DirectObject.DirectObject):
             self._stimChange = True
 
     def broadcaster(self):
+        '''
+        sends information to computer to write in anaconda prompt window
+        
+        :param self: Description
+        '''
         match self.reportingMethod:
             case "onStim":
                 msg = self._stimulus.stim_name
@@ -158,11 +163,11 @@ class StimulusBuddy(DirectObject.DirectObject):
             case _:
                 pass
 
-    def input(self):
-        print(f"StimulusBuddy listening on {self.subscriber.port}")
+    def pandastim_input(self):
+        print(f"StimulusBuddy listening on {self.pstim_subscriber.port}")
         while self._running:
-            topic = self.subscriber.socket.recv_string()
-            data = self.subscriber.socket.recv_pyobj()
+            topic = self.pstim_subscriber.socket.recv_string()
+            data = self.pstim_subscriber.socket.recv_pyobj()
             print(topic)
             print(data)
 
@@ -202,7 +207,6 @@ class StimulusBuddy(DirectObject.DirectObject):
                         print(f"failed to initialize stimulus {data}")
                         if self.receipts:
                             self.output(f"pstimReceipts: ERROR: {e}")
-
                 case _:
                     print(f"message {topic} not understood")
 
@@ -211,7 +215,7 @@ class StimulusBuddy(DirectObject.DirectObject):
             case "print":
                 print(f"pandastim {str(dt.now())} {msg}")
             case "zmq":
-                self.publisher.socket.send_pyobj(f"pandastim {str(dt.now())} {msg}")
+                self.pstim_publisher.socket.send_pyobj(f"pandastim {str(dt.now())} {msg}")
                 print(f"pandastim {str(dt.now())} {msg}")
             case _:
                 pass
@@ -257,10 +261,7 @@ class StimulusBuddy(DirectObject.DirectObject):
 
 class AligningStimBuddy(StimulusBuddy):
     """
-
-    this lad plays nicely with the gui, they chat back and forth
-
-    for directed control use the other guy
+    Allows for alignment on custom gui with bruker to pause and interact with pandastim stimuli presentation
 
     """
 
@@ -272,16 +273,16 @@ class AligningStimBuddy(StimulusBuddy):
         self.requiresAlignment = False
         self.runningVolumes = runningVolumes
 
-        self.aSub = utils.Subscriber(port=alignmentComms["wt_output"])
-        self.aPub = utils.Publisher(port=alignmentComms["wt_input"])
+        self.aligning_subscriber = utils.Subscriber(port=alignmentComms["alignment_output"])
+        self.aligning_publisher = utils.Publisher(port=alignmentComms["alignment_input"])
 
         self.alignmentThread = tr.Thread(target=self.msg_reception)
         self.alignmentThread.start()
 
     def msg_reception(self):
         while self._running:
-            topic = self.aSub.socket.recv_string()
-            message = self.aSub.socket.recv_pyobj()
+            topic = self.aligning_subscriber.socket.recv_string()
+            message = self.aligning_subscriber.socket.recv_pyobj()
 
             match topic:
                 case "alignment":
@@ -289,7 +290,10 @@ class AligningStimBuddy(StimulusBuddy):
                     match message.split("_"):
                         case ["pause"]:
                             messenger.send("pause")
+                            # pstim publisher sends this:
                             self.output(f"alignment: status: pause_request")
+                            self._pauseStatus = True
+                            self.output(f"move") # send out global broadcast to tell pstim to send out stimbuddy
                         case ["unpause"]:
                             messenger.send("unpause")
                             self.output(f"alignment: status: unpause_request")
@@ -298,6 +302,7 @@ class AligningStimBuddy(StimulusBuddy):
                                 f"alignment: status: completed with {moveAmt} movement"
                             )
                             self.aligning = False
+                            self._pauseStatus = False
                         case _:
                             print(f"{message}: message not understood")
 
@@ -306,8 +311,8 @@ class AligningStimBuddy(StimulusBuddy):
 
     def proceed_alignment(self):
         self.output(f"alignment: status: started")
-        self.aPub.socket.send_string(f"stimbuddy", zmq.SNDMORE)
-        self.aPub.socket.send_pyobj(f"proceed")
+        self.aligning_publisher.socket.send_string(f"stimbuddy", zmq.SNDMORE)
+        self.aligning_publisher.socket.send_pyobj(f"proceed")
 
     def wrap_up(self):
         self._running = False
@@ -329,13 +334,13 @@ class AligningStimBuddy(StimulusBuddy):
             self.lastReturnedStim = self.pop_queue()
             return self.lastReturnedStim
 
-    def input(self):
+    def pandastim_input(self):
         print('here')
-        print(f"StimulusBuddy listening on {self.subscriber.port}")
+        print(f"StimulusBuddy listening on {self.pstim_subscriber.port}")
         while self._running:
-            topic = self.subscriber.socket.recv_string()
+            topic = self.pstim_subscriber.socket.recv_string()
             print(topic)
-            data = self.subscriber.socket.recv_pyobj()
+            data = self.pstim_subscriber.socket.recv_pyobj()
 
             match topic:
                 case "stim":
@@ -374,8 +379,8 @@ class AligningStimBuddy(StimulusBuddy):
                         if self.receipts:
                             self.output(f"pstimReceipts: ERROR: {e}")
                 case "move":
-                    self.aPub.socket.send_string(f"stimbuddy", zmq.SNDMORE)
-                    self.aPub.socket.send_pyobj(["move", data])
+                    self.aligning_publisher.socket.send_string(f"stimbuddy", zmq.SNDMORE)
+                    self.aligning_publisher.socket.send_pyobj(["move", data])
                 case _:
                     print(f"message {topic} not understood")
 
