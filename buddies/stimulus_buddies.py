@@ -67,6 +67,7 @@ class StimulusBuddy(DirectObject.DirectObject):
             )
 
         if savePath:
+            savePath = str(savePath)
             self.filestream = utils.saving(savePath)
         else:
             self.filestream = None
@@ -281,6 +282,8 @@ class AligningStimBuddy(StimulusBuddy):
 
     def msg_reception(self):
         while self._running:
+            print('here2')
+            print(f"Alignment buddy listening on {self.aligning_subscriber.port}")
             topic = self.aligning_subscriber.socket.recv_string()
             message = self.aligning_subscriber.socket.recv_pyobj()
 
@@ -335,9 +338,9 @@ class AligningStimBuddy(StimulusBuddy):
             return self.lastReturnedStim
 
     def pandastim_input(self):
-        print('here')
-        print(f"StimulusBuddy listening on {self.pstim_subscriber.port}")
         while self._running:
+            print('here')
+            print(f"StimulusBuddy listening on {self.pstim_subscriber.port}")
             topic = self.pstim_subscriber.socket.recv_string()
             print(topic)
             data = self.pstim_subscriber.socket.recv_pyobj()

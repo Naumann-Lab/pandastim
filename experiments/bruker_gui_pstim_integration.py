@@ -16,7 +16,7 @@ from pandastim.stimuli import stimulus
 
 def pstimWrapper(alignmentPorts):
     # EDIT your save path here
-    mySavePath = r"E:\Kaitlyn\pstim_output.txt"
+    mySavePath = r"E:\Kaitlyn\troubleshooting\pstim_output.txt"
 
     # parameters necessary for ROI to pop up
     # here you can change the size of the ROI, the rotation of the window, location of window, etc
@@ -40,18 +40,18 @@ def pstimWrapper(alignmentPorts):
         savePath=mySavePath,)
     
 # all omr stims file includes shearing stims, faster speeds, randomized each block
-    # inputStimuli = pd.read_hdf(
-    #     Path(sys.executable)
-    #     .parents[0]
-    #     .joinpath(r"Lib\site-packages\pandastim\resources\protocols\all_omr_stims_aug2025_newvel.hdf" ))
+    inputStimuli = pd.read_hdf(
+        Path(sys.executable)
+        .parents[0]
+        .joinpath(r"Lib\site-packages\pandastim\resources\protocols\all_omr_stims_aug2025_newvel.hdf" ))
     
 
-    # # can augment your pstim file here in any way you want
-    # inputStimuli['freq'] = 60 # NEED TO HAVE A LARGER SPATIAL FREQ FOR SMALLER LINES, before it was 32 freq (maybe getting less responsive neurons)
+    # can augment your pstim file here in any way you want
+    inputStimuli['freq'] = 60 # NEED TO HAVE A LARGER SPATIAL FREQ FOR SMALLER LINES, before it was 32 freq (maybe getting less responsive neurons)
 
-    # intercardinal_dirs = ['forward_left', 'forward_right', 'backward_right', 'backward_left']
-    # cardinal_dirs =  ['forward', 'left', 'right', 'backward']
-    # shearing_stims = ['x_forward', 'backward_forward', 'x_backward', 'backward_x', 'forward_x','forward_backward']
+    intercardinal_dirs = ['forward_left', 'forward_right', 'backward_right', 'backward_left']
+    cardinal_dirs =  ['forward', 'left', 'right', 'backward']
+    shearing_stims = ['x_forward', 'backward_forward', 'x_backward', 'backward_x', 'forward_x','forward_backward']
 
     # # 3 reps of 16 stims at 15 duration, 720 sec
 
@@ -74,8 +74,8 @@ def pstimWrapper(alignmentPorts):
     # # 4 reps of 11 stims at 40 sec duration, 1760 sec
     # #     
     # # TEST if fish is centered
-    # inputStimuli['stationary_time'] = 20
-    # inputStimuli['duration'] =  25
+    inputStimuli['stationary_time'] = 20
+    inputStimuli['duration'] =  25
 
 
     # # # TEST with cardinal directions to make sure fish is good #
@@ -84,15 +84,15 @@ def pstimWrapper(alignmentPorts):
     # # get rid of specific stims for expt #
     
     # # inputStimuli = inputStimuli[~inputStimuli.stim_name.isin(shearing_stims)].reset_index(drop=True)
-    # inputStimuli = inputStimuli[~inputStimuli.stim_name.isin(intercardinal_dirs)].reset_index(drop=True)
+    inputStimuli = inputStimuli[~inputStimuli.stim_name.isin(intercardinal_dirs)].reset_index(drop=True)
     # # inputStimuli = inputStimuli[inputStimuli.stim_name.isin(['forward', 'backward_left', 'backward_right'])].reset_index(drop=True)
     # # inputStimuli['stationary_time'] = 3
     # # inputStimuli['duration'] =  5
     
     # # this will generate your stimulus sequence to be sent in the right datastructure
     # # DO NOT CHANGE
-    # stimSequence = utils.generate_stimSequence(inputStimuli)
-    # stimBuddy.queue = stimSequence
+    stimSequence = utils.generate_stimSequence(inputStimuli)
+    stimBuddy.queue = stimSequence
 
 
     pstim = stimulus.ExternalStimulus(buddy=stimBuddy, params_path=paramspath)
@@ -103,7 +103,7 @@ def pstimWrapper(alignmentPorts):
 # DO NOT CHANGE
 if __name__ == "__main__":
 
-    alignment_ports = {"wt_output": "5015", "wt_input": "5016"}
+    alignment_ports = {"alignment_output": "5015", "alignment_input": "5016"}
 
     _processes = [pstimWrapper]
 

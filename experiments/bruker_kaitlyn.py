@@ -16,7 +16,7 @@ from pandastim.stimuli import stimulus
 
 def pstimWrapper():
     # EDIT your save path here
-    mySavePath = r"E:\Kaitlyn\20251215_OMR2Stim_ensembles\fish14E\pstim_output.txt"
+    mySavePath = r"E:\Kaitlyn\troubleshooting\pstim_output.txt"
 
     # parameters necessary for ROI to pop up
     # here you can change the size of the ROI, the rotation of the window, location of window, etc
@@ -40,19 +40,18 @@ def pstimWrapper():
         Path(sys.executable)
         .parents[0]
         .joinpath(
-            
             # r"Lib\site-packages\pandastim\resources\protocols\all_omr_stims.hdf" # old all omr stims file, use with external lenses
-            r"Lib\site-packages\pandastim\resources\protocols\all_omr_stims_aug2025_newvel.hdf" 
+            r"Lib\site-packages\pandastim\resources\protocols\twentystim_3reps_5on20off_fakevol.hdf" 
             # r"Lib\site-packages\pandastim\resources\protocols\all_omr_stims_jan2025.hdf" # updated january 2025, includes shearing stims, faster speeds, randomized each block, with old projector
             # r"Lib\site-packages\pandastim\resources\protocols\forward_speed_tuning.hdf" # different speeds for forward, speed tuning
-        )
-    )
+        ))
+    
     # can augment your pstim file here in any way you want
-    inputStimuli['freq'] = 80 # NEED TO HAVE A LARGER SPATIAL FREQ FOR SMALLER LINES, before it was 32 freq (maybe getting less responsive neurons)
+    # inputStimuli['freq'] = 80 # NEED TO HAVE A LARGER SPATIAL FREQ FOR SMALLER LINES, before it was 32 freq (maybe getting less responsive neurons)
 
-    intercardinal_dirs = ['forward_left', 'forward_right', 'backward_right', 'backward_left']
-    cardinal_dirs =  ['forward', 'left', 'right', 'backward']
-    shearing_stims = ['x_forward', 'backward_forward', 'x_backward', 'backward_x', 'forward_x','forward_backward']
+    # intercardinal_dirs = ['forward_left', 'forward_right', 'backward_right', 'backward_left']
+    # cardinal_dirs =  ['forward', 'left', 'right', 'backward']
+    # shearing_stims = ['x_forward', 'backward_forward', 'x_backward', 'backward_x', 'forward_x','forward_backward']
 
     # 3 reps of 16 stims at 15 duration, 720 sec
 
@@ -75,18 +74,18 @@ def pstimWrapper():
     # 4 reps of 11 stims at 40 sec duration, 1760 sec
     #     
     # TEST if fish is centered
-    inputStimuli['stationary_time'] = 20
-    inputStimuli['duration'] =  25
+    # inputStimuli['stationary_time'] = 20
+    # inputStimuli['duration'] =  25
 
 
-    # # TEST with cardinal directions to make sure fish is good #
-    # inputStimuli = inputStimuli[inputStimuli.stim_name.isin(['forward', 'right', 'left'])].reset_index(drop=True)
+    # # # TEST with cardinal directions to make sure fish is good #
+    # # inputStimuli = inputStimuli[inputStimuli.stim_name.isin(['forward', 'right', 'left'])].reset_index(drop=True)
 
-    # get rid of specific stims for expt #
+    # # get rid of specific stims for expt #
     
-    # inputStimuli = inputStimuli[~inputStimuli.stim_name.isin(shearing_stims)].reset_index(drop=True)
-    inputStimuli = inputStimuli[~inputStimuli.stim_name.isin(intercardinal_dirs)].reset_index(drop=True)
-    # inputStimuli = inputStimuli[inputStimuli.stim_name.isin(['forward', 'backward_left', 'backward_right'])].reset_index(drop=True)
+    # # inputStimuli = inputStimuli[~inputStimuli.stim_name.isin(shearing_stims)].reset_index(drop=True)
+    # inputStimuli = inputStimuli[~inputStimuli.stim_name.isin(intercardinal_dirs)].reset_index(drop=True)
+    # # inputStimuli = inputStimuli[inputStimuli.stim_name.isin(['forward', 'backward_left', 'backward_right'])].reset_index(drop=True)
     # inputStimuli['stationary_time'] = 3
     # inputStimuli['duration'] =  5
     
