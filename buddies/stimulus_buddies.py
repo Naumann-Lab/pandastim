@@ -21,6 +21,10 @@ from pandastim.stimuli import stimulus_details, textures
 
 
 class StimulusBuddy(DirectObject.DirectObject):
+    """
+    Methods:
+        pauseStatus
+    """
     def __init__(
         self,
         reporting="onMotion",
@@ -46,7 +50,7 @@ class StimulusBuddy(DirectObject.DirectObject):
         self.reportingMethod = reporting
 
         outputMethods = ["print", "zmq"]
-        assert outputMethod in outputMethods, f"{reporting} not in reportingMethods"
+        assert outputMethod in outputMethods, f"{outputMethod} not in outputMethods"
         self.outputMethod = outputMethod
         if outputMethod == "zmq":
             self.publisher = utils.Publisher(port = comms['buddy_stimulus_socket'])
@@ -85,12 +89,23 @@ class StimulusBuddy(DirectObject.DirectObject):
         #    self.run_sub.start()
 
     def pauseStatus(self, pause_status):
+        """
+        Sets attribute defining pause status _pauseStatus
+        Args:
+            pause_status: bool
+                buddy -> protocol publisher socket message.  TRUE if paused.
+            
+        """
         if pause_status and not self._pauseStatus:
             self.queue = [self.lastReturnedStim] + self.queue
             print("tried to add to queue")
         self._pauseStatus = pause_status
 
     def position(self, newposition):
+        """
+        Resets current _position attribute to value provided by newposition
+
+        """
         if newposition != 0 and newposition != self._position:
             self._position = newposition
             self._motion = True
