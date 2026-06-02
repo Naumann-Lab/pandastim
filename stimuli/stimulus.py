@@ -19,6 +19,8 @@ import numpy as np
 import math
 from datetime import datetime as dt
 import pandas as pd
+import logging
+
 from direct.gui.OnscreenText import OnscreenText  # for binocular stim
 from direct.showbase import ShowBaseGlobal
 from direct.showbase.ShowBase import ShowBase
@@ -41,11 +43,10 @@ class StimulusSequencing(ShowBase):
 
     """
 
-    def __init__(self, stimuli=None, params_path="default", buddy=None, buddy_port = None):
+    def __init__(self, stimuli=None, params_path="default", buddy=None):
         super().__init__()
 
         self.stimuli = stimuli
-        self.textures = {}
 
         # if we have a stimbuddy start a task running
         self.buddy = buddy
@@ -66,10 +67,10 @@ class StimulusSequencing(ShowBase):
                 self.set_monocular()
             case stimulus_details.BinocularStimulusDetails():
                 self.set_binocular()
-            case stimulus_details.MaskedStimulusDetailsPack():
-                self.set_masked()
             case None:
                 pass
+            case stimulus_details.MaskedStimulusDetailsPack():
+                self.set_masked()
             case _:
                 print(
                     f"{self.current_stimulus.__class__} -- Stimulus type not understood"
@@ -85,7 +86,8 @@ class StimulusSequencing(ShowBase):
         # create card
         self.card = self.aspect2d.attachNewNode(cardmaker.generate())
         self.card.setScale(self.scale)
-        self.card.setColor((0, 0, 0, 1))
+        self.card.setColor((1, 1, 1, 1))
+
         self.card.setTexture(self.texture_stage, self.current_stimulus.texture.texture)
 
         # set tex transforms
@@ -109,7 +111,7 @@ class StimulusSequencing(ShowBase):
             and move_monocular_task.time >= self.current_stimulus.hold_after
         ):
             pass
-        else:#finally moving monucular
+        else:
             self.new_position = (
                 -move_monocular_task.time
             ) * self.current_stimulus.velocity
@@ -147,7 +149,7 @@ class StimulusSequencing(ShowBase):
         cardmaker = CardMaker("stimcard")
         cardmaker.setFrameFullscreenQuad()
 
-        self.setBackgroundColor((255, 255, 255, 1))
+        self.setBackgroundColor((0, 0, 0, 1))
         self.left_card = self.aspect2d.attachNewNode(cardmaker.generate())
         self.left_card.setAttrib(ColorBlendAttrib.make(ColorBlendAttrib.M_add))
         self.right_card = self.aspect2d.attachNewNode(cardmaker.generate())
@@ -413,27 +415,28 @@ class StimulusSequencing(ShowBase):
         return move_mask_task.cont
 
     def clear_cards(self):
-        try:
-            self.card.detach_node()
-        except:
-            pass
-        try:
-            self.left_card.detach_node()
-        except:
-            pass
-        try:
-            self.right_card.detach_node()
-        except:
-            pass
-        try:
-            for n, masked_stim in enumerate(self.current_stimulus.masked_stim_details):
-                self.masked_stims[n]['card'].detach_node()
-        except:
-            pass
-        self.taskMgr.remove("move_monocular")
-        self.taskMgr.remove("move_binocular")
-        self.taskMgr.remove("move_masks")
-        self.current_stimulus = None
+            try:
+                self.card.detach_node()
+            except:
+                pass
+            try:
+                self.left_card.detach_node()
+            except:
+                pass
+            try:
+                self.right_card.detach_node()
+            except:
+                pass
+            try:
+                for n, m in self.masked_stims.items():
+                    m.card.detach_node()
+            except:
+                pass
+
+            self.taskMgr.remove("move_monocular")
+            self.taskMgr.remove("move_binocular")
+            self.taskMgr.remove("move_masks")
+            self.current_stimulus = None
 
     def trs_transform(self):
         """
@@ -441,6 +444,9 @@ class StimulusSequencing(ShowBase):
         panda3d developer rdb contributed to this code
         """
         ## highly recommend not monkeying with this too much
+
+        ## highly recommend not monkeying with this too much
+        # print([self.center_x, self.center_y], [self.bin_center_x, self.bin_center_y])
         self.bin_center_x = 1 * self.center_y * self.scale
         self.bin_center_y = -1 * self.center_x * self.scale
 
@@ -525,7 +531,7 @@ class StimulusSequencing(ShowBase):
                 logging.error("no default parameters found")
 
         if not self.default_params:
-            self.logging.info("initializing non-loaded params")
+            logging.info("initializing non-loaded params")
             self.default_params = {
                 "rotation_offset": -90,
                 "window_size": [1024, 1024],
@@ -539,15 +545,16 @@ class StimulusSequencing(ShowBase):
                 "projecting_fish": False,
                 "hold_onfinish": True,
                 "publish_port": 5010,
-                "centering_stimulus": "concentric circle"
+                "scale" : 8
             }
 
     def enable_params(self):
         self.scale = np.sqrt(self.default_params["scale"])
         self.center_x = self.default_params["center"][0]
         self.center_y = self.default_params["center"][1]
-        self.rotation_offset = self.default_params["rotation_offset"]
-        self.strip_angle = self.default_params["strip_angle"]
+        self.rotation_offset = self.default_params[
+            "rotation_offset"
+        ]  # rig / implementation specific offset
         self.angle_rotation = 0  # for changing angles on the fly
         self.new_position = 0  # for tracking position on the fly
 
@@ -601,6 +608,31 @@ class OpenLoopStimulus(StimulusSequencing):
 
         self.set_stimulus()
 
+    def set_monocular(self):
+        cardmaker = CardMaker("stimcard")
+        cardmaker.setFrameFullscreenQuad()
+
+        # create tex stage
+        self.texture_stage = TextureStage("texture_stage")
+
+        # create card
+        self.card = self.aspect2d.attachNewNode(cardmaker.generate())
+        self.card.setScale(16)
+        self.card.setColor((1, 1, 1, 1))
+
+        self.card.setTexture(self.texture_stage, self.current_stimulus.texture.texture)
+
+        # set tex transforms
+        self.card.setTexRotate(
+            self.texture_stage,
+            self.current_stimulus.angle + self.default_params["rotation_offset"],
+            )
+        self.center_x = 0.05
+        self.center_y = 0.1
+        self.card.setTexPos(self.texture_stage, self.center_x, self.center_y, 0) # x, y
+        self.taskMgr.add(self.move_monocular, "move_monocular")
+
+
 
 class SequencingWithPause(StimulusSequencing):
     """
@@ -614,6 +646,7 @@ class SequencingWithPause(StimulusSequencing):
 
         self.paused = False
         self.set_stimulus()
+
         self.accept("pause", self.pause)
         self.accept("unpause", self.unpause)
 
@@ -621,15 +654,15 @@ class SequencingWithPause(StimulusSequencing):
         # match stimulus to stimulus details type
         if not self.paused:
             super().set_stimulus()
+            # print(self._print_counter)
             self._print_counter += 1
         else:
             self.buddy.proceed_alignment()
 
     def pause(self):
         self.paused = True
-        print('here')
-        #if not self.current_stimulus:
-        #    self.buddy.proceed_alignment()
+        if not self.current_stimulus:
+            self.buddy.proceed_alignment()
 
     def unpause(self):
         if self.paused:
@@ -709,7 +742,7 @@ class BehaviorStimulus(SequencingWithPause):
                 texture = textures.BlankTex(),  velocity=0., angle=0)
         elif self.default_params["centering_stimulus"] == "phototaxis":
             self.current_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'pet turtle',
-                texture = textures.CircleGrayTex(circle_radius = 50),  velocity=0., angle=0)
+                texture = textures.CircleRGBTex(circle_radius = 150),  velocity=0., angle=0)
         else:
             print("centering stimulus not understood")
         self.radial_index += 1
@@ -721,24 +754,6 @@ class BehaviorStimulus(SequencingWithPause):
         return radial_task.cont
 
     def set_monocular(self):
-        # cardmaker = CardMaker("stimcard")
-        # cardmaker.setFrameFullscreenQuad()
-        #
-        # # create tex stage
-        # self.texture_stage = TextureStage("texture_stage")
-        #
-        # # create card
-        # self.card = self.aspect2d.attachNewNode(cardmaker.generate())
-        # self.card.setScale(self.scale)
-        # self.card.setColor((1, 1, 1, 1))
-        # self.card.setTexture(self.texture_stage, self.current_stimulus.texture.texture)
-        # #MATT OG WORKING CODES
-        # self.card.setTexRotate(
-        #    self.texture_stage,
-        #    self.current_stimulus.angle + self.default_params["rotation_offset"],
-        # )
-        # self.card.setTexPos(self.texture_stage, self.center_x, self.center_y, 0)
-
         #PLAYGROUND
         tex = self.current_stimulus.texture.texture
 
@@ -784,9 +799,6 @@ class BehaviorStimulus(SequencingWithPause):
             self.card.setTexTransform(
                 self.texture_stage, self.stage_transform
             )
-            # self.card.setTexPos(
-            #     self.texture_stage, self.new_position + self.center_x, self.center_y, 0
-            # )  # u, v, w
         return move_monocular_task.cont
 
     def set_binocular(self):
@@ -1252,7 +1264,7 @@ class BrukerStimulus(SequencingWithPause):
         cardmaker = CardMaker("stimcard")
         cardmaker.setFrameFullscreenQuad()
 
-        self.setBackgroundColor((0, 0, 0, 1))#black background
+        self.setBackgroundColor((0, 0, 0, 0))
         self.card = self.aspect2d.attachNewNode(cardmaker.generate())
         self.card.setAttrib(ColorBlendAttrib.make(ColorBlendAttrib.M_add))
 
@@ -1272,7 +1284,6 @@ class BrukerStimulus(SequencingWithPause):
         elif move_monocular_task.time >= self.current_stimulus.duration != -1:
             self.clear_cards()
             self.new_position = 0
-            self.delta_angle = 0
             return move_monocular_task.done
         elif (
             not np.isnan(self.current_stimulus.hold_after)
@@ -1284,13 +1295,13 @@ class BrukerStimulus(SequencingWithPause):
             self.new_position = (
                 move_monocular_task.time - self.current_stimulus.stationary_time
             ) * self.current_stimulus.velocity
-            self.delta_angle = (
-                move_monocular_task.time - self.current_stimulus.stationary_time
-            ) * self.current_stimulus.angular_velocity
-            self.stage_transform = self.trs_transform_mono(self.current_stimulus.angle, self.delta_angle, self.new_position)
+            self.stage_transform = self.trs_transform_mono(self.current_stimulus.angle, self.new_position)
             self.card.setTexTransform(
                 self.texture_stage, self.stage_transform
             )
+            # self.card.setTexPos(
+            #     self.texture_stage, self.new_position + self.center_x, self.center_y, 0
+            # )  # u, v, w
         return move_monocular_task.cont
 
     def set_binocular(self):
@@ -1329,14 +1340,14 @@ class BrukerStimulus(SequencingWithPause):
             (tex_1_size[0], tex_1_size[1]), dtype=np.uint8
         )
         self.left_mask_array[
-            : (tex_1_size[0] // 2) - self.current_stimulus.strip_width // 2, :
+            :, (tex_1_size[1] // 2) - self.current_stimulus.strip_width // 2 :
         ] = 0
 
         self.right_mask_array = 255 * np.ones(
             (tex_2_size[0], tex_2_size[1]), dtype=np.uint8
         )
         self.right_mask_array[
-            (tex_2_size[0] // 2) + self.current_stimulus.strip_width // 2 :, :
+            :, : (tex_2_size[1] // 2) + self.current_stimulus.strip_width // 2
         ] = 0
 
         if self.default_params["projecting_fish"]:
@@ -1346,7 +1357,6 @@ class BrukerStimulus(SequencingWithPause):
             self.right_mask_array[506:515, 512:513] = 120
             self.left_mask_array[514:516, 510:512] = 255
             self.right_mask_array[514:516, 512:514] = 255
-
             ### END DANGER ZONE ###
 
         # ADD TEXTURE STAGES TO CARDS
@@ -1384,12 +1394,12 @@ class BrukerStimulus(SequencingWithPause):
 
         self.left_angle = (
             self.current_stimulus.strip_angle
-            + self.current_stimulus.angle[0] 
-            + self.rotation_offset 
+            + self.current_stimulus.angle[0]#because that binocular stim is set up relative to the strip
+            + self.rotation_offset
         )
         self.right_angle = (
             self.current_stimulus.strip_angle
-            + self.current_stimulus.angle[1]
+            + self.current_stimulus.angle[1]#because that binocular stim is set up relative to the strip
             + self.rotation_offset
         )
 
@@ -1408,7 +1418,6 @@ class BrukerStimulus(SequencingWithPause):
         self.taskMgr.add(self.move_binocular, "move_binocular")
 
     def move_binocular(self, move_binocular_task):
-        #Note that angular velocity current doesn't work for binocular sitmulus
         ### LEFT SIDE ###
         if move_binocular_task.time <= self.current_stimulus.stationary_time[0]:
             new_position_left = 0
@@ -1425,7 +1434,6 @@ class BrukerStimulus(SequencingWithPause):
             new_position_left = self.new_position[0]
         else:
             new_position_left = (move_binocular_task.time * self.current_stimulus.velocity[0])#remove -time because it works now
-            #delta_angle_left = (move_binocular_task.time * self.current_stimulus.angular_velocity[0])
             self.left_card.setTexPos(
                 self.left_texture_stage,
                 new_position_left + self.current_stimulus.position[0],
@@ -1449,7 +1457,6 @@ class BrukerStimulus(SequencingWithPause):
             new_position_right = self.new_position[1]
         else:
             new_position_right = (move_binocular_task.time * self.current_stimulus.velocity[1])#remove -time because it works now
-            #delta_angle_right = (move_binocular_task.time * self.current_stimulus.angular_velocity[1])
             self.right_card.setTexPos(
                 self.right_texture_stage,
                 new_position_right + self.current_stimulus.position[0],
@@ -1487,13 +1494,13 @@ class BrukerStimulus(SequencingWithPause):
             ## CREATE CARDS ###
             cardmaker = CardMaker("stimcard")
             cardmaker.setFrameFullscreenQuad()
-            self.setBackgroundColor((0, 0, 0, 0))#MMin: bg color 1, 1, 1, 1; MAdd: bgcolor 0, 0, 0,0
+            self.setBackgroundColor((0, 0, 0, 1))
             card = self.aspect2d.attachNewNode(cardmaker.generate())
             #card.setScale(self.scale)
 
             # card.setAttrib(ColorBlendAttrib.make(ColorBlendAttrib.M_add))
             card.setAttrib(
-                ColorBlendAttrib.make(ColorBlendAttrib.MAdd, ColorBlendAttrib.OIncomingAlpha, ColorBlendAttrib.OOne))#MAdd: white dot red/black stripes, MMin: black dot red/black stripes
+                ColorBlendAttrib.make(ColorBlendAttrib.MAdd, ColorBlendAttrib.OIncomingAlpha, ColorBlendAttrib.OOne))
             ## CREATE MASK ARRAYS ##
             mask_array = 255 * np.ones(
                 (tex_size[0], tex_size[1]), dtype=np.uint8
@@ -1518,6 +1525,7 @@ class BrukerStimulus(SequencingWithPause):
             )
 
             card.setTexture(mask_stage, mask)
+
             card.setTransparency(TransparencyAttrib.MAlpha)
             card.setAlphaScale(masked_stim.transparency)
 
@@ -1573,8 +1581,7 @@ class BrukerStimulus(SequencingWithPause):
 
             else:
                 new_position = (move_mask_task.time - masked_stim.stationary_time) * masked_stim.velocity
-                delta_angle = (move_mask_task.time - masked_stim.stationary_time) * masked_stim.angular_velocity
-                stage_transform = self.trs_transform_mono(masked_stim.angle, delta_angle, new_position)
+                stage_transform = self.trs_transform_mono(masked_stim.angle, new_position)
                 card.setTexTransform(
                     texture_stage, stage_transform
                 )
@@ -1589,6 +1596,7 @@ class BrukerStimulus(SequencingWithPause):
                 # )  # u, v, w
 
         return move_mask_task.cont
+
 
     def trs_transform(self):
         """
@@ -1609,13 +1617,14 @@ class BrukerStimulus(SequencingWithPause):
 
         return translate.compose(rotate.compose(scale.compose(center_shift)))
 
-    def trs_transform_mono(self, stimulus_angle, delta_angle = 0, new_position = 0):
+    def trs_transform_mono(self, stimulus_angle, new_position = 0):
         """
         trs = translate-rotate-scale transform for mask stage
         panda3d developer rdb contributed to this code
         """
         #calculate new_position in x and y direction
-        angle = math.radians(self.strip_angle + stimulus_angle +self.rotation_offset + delta_angle)
+        angle = math.radians(self.strip_angle + stimulus_angle
+                                              +self.rotation_offset)
         x_offset = math.sin(angle) * new_position
         y_offset = math.cos(angle) * new_position
 
@@ -1629,7 +1638,7 @@ class BrukerStimulus(SequencingWithPause):
         center_shift = TransformState.make_pos2d((-pos[0], -pos[1]))
         scale = TransformState.make_scale2d(1 / self.scale)
         rotate = TransformState.make_rotate2d(self.strip_angle + stimulus_angle
-                                              +self.rotation_offset + delta_angle)
+                                              +self.rotation_offset)
         translate = TransformState.make_pos2d((0.5, 0.5))
 
         return translate.compose(rotate.compose(scale.compose(center_shift)))
@@ -1658,12 +1667,12 @@ class BrukerStimulus(SequencingWithPause):
                 self.mask_transform = self.trs_transform()
                 self.left_angle = (
                     self.current_stimulus.angle[0]
-                    + self.rotation_offset -180#because that binocular stim is set up relative to the strip
+                    + self.rotation_offset+90#because that binocular stim is set up relative to the strip
                     + self.angle_rotation
                 )
                 self.right_angle = (
                     self.current_stimulus.angle[1]
-                    + self.rotation_offset  -180#because that binocular stim is set up relative to the strip
+                    + self.rotation_offset+90#because that binocular stim is set up relative to the strip
                     + self.angle_rotation
                 )
 

@@ -8,7 +8,7 @@ from pandastim.buddies.stimulus_buddies import StimulusBuddy, StytraBuddy
 from pandastim.utils import Publisher, Subscriber
 from datetime import datetime as dt
 
-from math import radians, degrees, cos, sin, atan, atan2
+from math import radians, degrees, cos, sin, atan
 
 import sys
 import zmq
@@ -43,7 +43,6 @@ class BaseProtocol(DirectObject.DirectObject):
 
         #this talks to the buddy about starting stimulus and calibration stuff, hopefully
         self.protocol_buddy_pub = utils.Publisher(ports['protocol_buddy_socket'])
-        self.buddy_protocol_sub = utils.Subscriber(port=ports['buddy_protocol_socket'])
 
         # this receives positional information from sytra
         self.position_comm = utils.Subscriber(port=ports['tracking_socket'])
@@ -174,7 +173,7 @@ class BaseProtocol(DirectObject.DirectObject):
 
     # use the cam2proj
     def position_transformer(self, x, y):
-        pos = np.array([x,y])
+        pos = np.array([x, y])
         conv_pt = cv2.transform(np.reshape(pos, (1, 1, 2)), self.cam2proj)[0][0]
 
         a = conv_pt[0]
@@ -578,21 +577,8 @@ class BrukerClosedLoopProtocol(BaseProtocol):
 
         self.current_stim_id = -1
         self.stimulating = False
-        
-        self.buddypause = 'playing'#default playing
+
         super().__init__(*args, **kwargs)
-
-    def position_transformer(self, x, y):
-        pos = np.array([x,y])
-        conv_pt = cv2.transform(np.reshape(pos, (1, 1, 2)), self.cam2proj)[0][0]
-
-        a = conv_pt[0]
-        b = conv_pt[1]
-
-        x = -1 * ((b / self.defaults['window_size'][0]) - 0.5)
-        y = 1 * ((a / self.defaults['window_size'][1]) - 0.5)
-
-        return x, y
 
     def centering_calibration(self):
         """receive clicking on the different icons for calibration and tell buddy to display calibration stimuli
@@ -614,79 +600,40 @@ class BrukerClosedLoopProtocol(BaseProtocol):
                 ## this will be images
                 image = utils.img_receiver(self.stytra_cam_output_port.socket)
                 if topic == 'calibration':
-                    #disabled automatic calibration
-                    image -= 3
-                    image[image < 0] = 0
-                    image = np.array(image)
-                    self.camera_pts = [np.nan, np.nan, np.nan]
-                    self.p1 = None
-                    self.p2 = None
-                    self.p3 = None
-                    display_shape = (600, 600)
-                    def transform_resize_image(x, y):#because I transform the image as a smaller size to fit inthe window on the screen, I need to transform these
-                        return (x/display_shape[0]*image.shape[0],  y/display_shape[1]*image.shape[1])
-                    def draw(event, x, y, flags, params):#@ChatGPT
-                        if event == cv2.EVENT_LBUTTONDOWN:
-                            if self.p1 == None:
-                                self.p1 = transform_resize_image(x, y)
-                            elif self.p2 == None:
-                                self.p2 = transform_resize_image(x, y)
-                            elif self.p3 == None:
-                                self.p3 = transform_resize_image(x, y)
-
-                    cv2.namedWindow('calibrationWindow')
-                    cv2.setMouseCallback('calibrationWindow', draw)
-
-                    # opencv windows like to pop up in the background, this is hacky but brings it to front
-                    calibration_window = gw.getWindowsWithTitle('calibrationWindow')[0]
-                    calibration_window.minimize()
-                    calibration_window.restore()
-                    calibration_window.maximize()
-                        
-
-                    while True:
-                        resized_image = cv2.resize(image, display_shape)
-                        cv2.imshow('calibrationWindow', resized_image)
-                        key = cv2.waitKey(500)
-                        if key == 27:
-                            break
-                    cv2.destroyAllWindows()
-                    proj_to_camera, camera_to_proj = calibration.StimulusCalibrator(image, manual = True, 
-                                                    camera_pts = np.array([self.p1, self.p2, self.p3])).transforms()
-                    calibration.save_params(proj_to_camera, camera_to_proj, self.rig_number)
-                    print('calibration saved: ', proj_to_camera)
-
+                    try:
+                        proj_to_camera, camera_to_proj = calibration.StimulusCalibrator(image).transforms()
+                        calibration.save_params(proj_to_camera, camera_to_proj, self.rig_number)
+                        print('calibration saved: ', proj_to_camera)
+                    except Exception as e:
+                        print('failed to calibrate', e)
 
                 elif topic == 'centering':
                     image -= 3
                     image[image < 0] = 0
                     image = np.array(image)
                     self.centered_pt = [np.nan, np.nan]
-                    self.centered_theta_cali = np.nan
+                    self.centered_theta = np.nan
                     self.p1 = None
                     self.p2 = None
-                    display_shape = (1000, 1000)
-                    def transform_resize_image(x, y):#because I transform the image as a smaller size to fit inthe window on the screen, I need to transform these
-                        return (int(x/display_shape[0]*image.shape[0]),  int(y/display_shape[1]*image.shape[1]))
                     def draw(event, x, y, flags, params):#@ChatGPT
                         if event == cv2.EVENT_LBUTTONDOWN:
-                            self.p1 = transform_resize_image(x, y)
+                            self.p1 = (x, y)
                         elif event == cv2.EVENT_LBUTTONUP:
-                            self.p2 = transform_resize_image(x, y)
+                            self.p2 = (x, y)
                             # If first click exists, draw a line from first click to second click
-                            cv2.line(image, self.p1, self.p2, color=(255, 255, 255), thickness=3)
+                            cv2.line(image, self.p1,self. p2, color=(255, 255, 255), thickness=3)
                             #calculate the mid perpendicular line that symbolize the heading direction
                             midpoint = ((self.p1[0] + self.p2[0]) // 2, (self.p1[1] + self.p2[1]) // 2)
                             dx = self.p2[0] - self.p1[0]
                             dy = self.p2[1] - self.p1[1]
-                            if dy != 0:  # If the line is not vertical
-                                slope = dx/dy
+                            if dx != 0:  # If the line is not vertical
+                                slope = dy / dx
                                 # Perpendicular slope
                                 perp_slope = -1 / slope
                                 # Length of the perpendicular line (arbitrary choice)
                                 line_length = 100
-                                perp_dx = int(sin(atan(perp_slope)) * line_length)
-                                perp_dy = int(cos(atan(perp_slope)) * line_length)
+                                perp_dx = int(cos(atan(perp_slope)) * line_length)
+                                perp_dy = int(sin(atan(perp_slope)) * line_length)
                                 # Draw the perpendicular line
                                 cv2.line(image,
                                         (midpoint[0] - perp_dx, midpoint[1] - perp_dy),
@@ -697,14 +644,9 @@ class BrukerClosedLoopProtocol(BaseProtocol):
                                 cv2.line(image,
                                         (midpoint[0] - 100, midpoint[1]),
                                         (midpoint[0] + 100, midpoint[1]),
-                                        color=(255,255, 255), thickness=3)
+                                        color=(255, 100, 100), thickness=3)
+                                self.centered_theta = 0
                             self.centered_pt = midpoint
-                            #calculate the calibrated slope on the projector
-                            p1_cali = self.position_transformer(self.p1[0], self.p1[1])
-                            p2_cali = self.position_transformer(self.p2[0], self.p2[1])
-                            print(p2_cali, p1_cali)
-                            self.centered_theta_cali = atan2(p1_cali[1] - p2_cali[1], p2_cali[0] - p1_cali[0])#dont touch this unless yk wyd
-                            print(f'fish facing {degrees(self.centered_theta_cali)}')  
 
                     cv2.namedWindow('centerWindow')
                     cv2.setMouseCallback('centerWindow', draw)
@@ -716,8 +658,7 @@ class BrukerClosedLoopProtocol(BaseProtocol):
                     centering_window.maximize()
 
                     while True:
-                        resized_image = cv2.resize(image, display_shape)
-                        cv2.imshow('centerWindow', resized_image)
+                        cv2.imshow('centerWindow', image)
                         key = cv2.waitKey(500)
                         if key == 27:
                             break
@@ -730,7 +671,7 @@ class BrukerClosedLoopProtocol(BaseProtocol):
                         print(f'raw {self.centered_pt}' ,e)
 
                     try:
-                        calibration.save_centers(self.centered_pt, self.centered_theta_cali, self.rig_number)
+                        calibration.save_centers(self.centered_pt, self.centered_theta, self.rig_number)
                         print('center saved')
                     except Exception as e:
                         print('failed to center', e)
@@ -742,7 +683,9 @@ class BrukerClosedLoopProtocol(BaseProtocol):
         self.last_message = None
 
         self.current_stim = {'stim_type' : None, 'angle' : None, 'stim_name': None}
+
         super().run_experiment()
+
         curr_t = time.time()
         self.timing_comm.socket.send_string('time', zmq.SNDMORE)
         self.timing_comm.socket.send_pyobj([curr_t - self.init_time + 3 + np.sum(self.stimuli.duration.values), curr_t - self.init_time])
@@ -764,37 +707,25 @@ class BrukerClosedLoopProtocol(BaseProtocol):
     def update_time(self):
         curr_t = time.time()
         if curr_t - self.last_t_update >= self.t_update_frequency:
+
             self.timing_comm.socket.send_string('time', zmq.SNDMORE)
             if self.current_stim_id != -1:
                 self.timing_comm.socket.send_pyobj(
                     [(curr_t - self.init_time) + 3 + np.sum(
                         self.stimuli.duration.values[self.current_stim_id:]), (curr_t - self.init_time)])
             else:
-                self.timing_comm.socket.send_pyobj(
+               self.timing_comm.socket.send_pyobj(
                     [(curr_t - self.init_time) + 3 + np.sum(
                         self.stimuli.duration.values), (curr_t - self.init_time)])
-            self.last_t_update = curr_t#3s cusion for alignment or if anything weird happens
+            self.last_t_update = curr_t
 
     def position_receiver(self):
         """Receiving the tracking data, currently not being used but can be implemented as closed loop vigor
-        in the future.
-        Also receiving pausing data from buddy"""
+        in the future."""
         while self.experiment_running:
             topic = self.position_comm.socket.recv_string()
             data = self.position_comm.socket.recv_pyobj()#right now: the vigor of the fish
-            
-            prev_buddypause = self.buddypause
-            try:
-                buddytopic = self.buddy_protocol_sub.socket.recv_string(flags=zmq.NOBLOCK)
-                self.buddypause = self.buddy_protocol_sub.socket.recv_pyobj(flags=zmq.NOBLOCK)# if pause, it will give an object
-                if self.buddypause == 'unpause':
-                    self.update_time()
-                    self.buddypause = 'playing'
-                else:
-                    pass
-            except zmq.Again:
-                # Nothing received this time, following previous status
-                self.buddypause = prev_buddypause
+
             self.fish_data.append(data)
 
             if not np.isnan(data):
@@ -809,10 +740,9 @@ class BrukerClosedLoopProtocol(BaseProtocol):
     def stim_sequencer(self):
         # This is called every time new data arrives
 
-        data = self.fish_data[-1]
+        data = self.fish_data
 
         # IF YOU MAKE IT TO HERE YOUR SHOWING STIMULI #
-        #send and update the next stimulus
         if not self.stimulating:
             self.current_stim_id += 1
             if self.current_stim_id > len(self.stimuli) - 1:
@@ -820,18 +750,17 @@ class BrukerClosedLoopProtocol(BaseProtocol):
             self.current_stim = self.stimuli.iloc[self.current_stim_id]
             self.protocol_buddy_pub.socket.send_string('stimulus')
             self.protocol_buddy_pub.socket.send_pyobj(self.current_stim)
-            x, y= self.position_transformer(self.centered_pt[0], self.centered_pt[1])
-            theta = self.centered_theta_cali
+            x, y = self.position_transformer(self.centered_pt[1], self.centered_pt[0])
+            theta = utils.angle_mean(utils.reduce_to_pi(self.centered_theta))
             self.protocol_buddy_pub.socket.send_string('stimulus_update')
             self.protocol_buddy_pub.socket.send_pyobj([x, y, degrees(theta)])
             self.last_update_time = time.time()
             self.save([self.current_stim_id, self.current_stim], x, y, self.centered_theta, data)
+
             self.last_message = 'some_stimmin'
+
             self.stimulating = True
             self.stim_start = time.time()
-        #if simulating, but longer time, and we are not pausing, send and update the next stimulus
-        if self.stimulating and time.time() - self.stim_start >= np.max(self.current_stim.duration) and self.buddypause == 'playing':
+        if self.stimulating and time.time() - self.stim_start >= np.max(self.current_stim.duration):
             self.stimulating = False
-        #if simulating and time is small: just let it be and show the current stimulus
-
         #self.save([self.current_stim_id, self.current_stim], x, y, theta, data)
