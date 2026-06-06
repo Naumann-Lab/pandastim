@@ -131,7 +131,7 @@ class BaseProtocol(DirectObject.DirectObject):
             else:
                 ## this will be images
                 image = utils.img_receiver(self.stytra_cam_output_port.socket)
-                if topic == 'calibration':
+                if topic == 'caposition_comm.libration':
                     try:
                         proj_to_camera, camera_to_proj = calibration.StimulusCalibrator(image).transforms()
                         calibration.save_params(proj_to_camera, camera_to_proj, self.rig_number)
@@ -764,3 +764,227 @@ class BrukerClosedLoopProtocol(BaseProtocol):
         if self.stimulating and time.time() - self.stim_start >= np.max(self.current_stim.duration):
             self.stimulating = False
         #self.save([self.current_stim_id, self.current_stim], x, y, theta, data)
+
+
+class VigorLockedProtocol(BaseProtocol):
+    #adapted from ClosedLoopProtocol
+    def __init__(self, *args, **kwargs):
+        # update stytras timer this often (in seconds)
+        # if this is too fast stytra gets wrecked
+        self.t_update_frequency = 1
+        self.current_stim_id = -1
+        self.stimulating = False
+
+        super().__init__(*args, **kwargs)
+
+    def run_experiment(self):
+        self.filestream = utils.saving(self.defaults['save_path'])
+
+        # recenter the fish if she's gone more than this time
+        self.missing_fish_t = self.defaults['missing_fish_t']
+
+        # units in camera XY pixels fish must be within center to trigger a trial
+        self.min_fish_dst_to_center = self.defaults['min_fish_dst_to_center']
+        self.xy_thresh = self.defaults['xy_thresh']
+        self.theta_thresh = self.defaults['theta_thresh']
+
+        self.last_t_update = 0
+        self.last_message = None
+
+        self.set_x = 0
+        self.set_y = 0
+        self.set_theta = 0
+        self.set_vigor = 0
+
+
+        self.current_stim = {'stim_type' : None, 'angle' : None, 'stim_name': None}
+
+        super().run_experiment()
+
+        curr_t = time.time()
+        self.timing_comm.socket.send_string('time', zmq.SNDMORE)
+        self.timing_comm.socket.send_pyobj([curr_t - self.init_time + 3 + np.sum(self.stimuli.duration.values), curr_t - self.init_time])
+
+    def send_centering(self):
+        cali_pos = self.position_transformer(self.centered_pt[0], self.centered_pt[1])
+        if self.defaults['radial_centering']:
+            centering_stimulus = [-1, {'stim_type': 'centering', 'type': 'radial', 'velocity': 0, 'angle' : 0, 'center_x': cali_pos[0],
+                                       'center_y': cali_pos[1]}]
+        else:#right now static is not supported cuz me (Cleo) is lazy and we are not using it on the behavior rig
+            centering_stimulus = [-1, {'stim_type': 'centering', 'type': 'static', 'velocity': 0, 'angle' : 0, 'center_x': cali_pos[0],
+                                       'center_y': cali_pos[1]}]
+        self.protocol_buddy_pub.socket.send_string('centering')
+        self.protocol_buddy_pub.socket.send_pyobj(cali_pos)
+        self.save(centering_stimulus, self.fish_data[-1][0], self.fish_data[-1][1], self.fish_data[-1][2])
+
+    def save(self, stim, x, y, theta, vigor):
+        self.filestream.write("\n")
+        t = time.time() - self.init_time
+        if 'duration' in stim[1]:
+            dur = stim[1]['duration']
+        else:
+            dur = 99
+        if 'stationary_time' in stim[1]:
+            stat = stim[1]['stationary_time']
+        else:
+            stat = 0
+        self.filestream.write(f"{t}_{self.current_stim_id}_{stim[1]['stim_type']}_{stim[1]['angle']}_{dur}_{stat}_{x}_{y}_{theta}_{vigor}")
+        self.filestream.flush()
+
+    def update_time(self):
+        curr_t = time.time()
+        if curr_t - self.last_t_update >= self.t_update_frequency:
+
+            self.timing_comm.socket.send_string('time', zmq.SNDMORE)
+            if self.current_stim_id != -1:
+                self.timing_comm.socket.send_pyobj(
+                    [(curr_t - self.init_time) + 3 + np.sum(
+                        self.stimuli.duration.values[self.current_stim_id:]), (curr_t - self.init_time)])
+            else:
+               self.timing_comm.socket.send_pyobj(
+                    [(curr_t - self.init_time) + 3 + np.sum(
+                        self.stimuli.duration.values), (curr_t - self.init_time)])
+            self.last_t_update = curr_t
+
+    def position_receiver(self):
+        while self.experiment_running:
+            topic = self.position_comm.socket.recv_string()
+            data = self.position_comm.socket.recv_pyobj()
+
+            self.fish_data.append(data)
+
+            if not np.isnan(data[0]):
+                self.last_fish_present = time.time()
+
+            # trim lists
+            if len(self.fish_data) >= self.max_buffer:
+                self.fish_data = self.fish_data[-self.max_buffer//2:]
+
+            self.stim_sequencer()
+
+    def stim_sequencer(self):
+        # This is called every time new data arrives
+
+        if time.time() - self.last_fish_present >= self.missing_fish_t or np.sum(np.isnan(np.array(self.fish_data)[:, 0][-20:])) >= 7: ##FISH LESS THAN 20 - 7 FRAMES:
+            # RECENTER THE FISH #
+            if self.current_stim['stim_name'] != 'blank':
+                if self.last_message != f"centering_at_{self.centered_pt}":
+                    self.send_centering()
+                    self.last_message = f"centering_at_{self.centered_pt}"
+                    print('beep boop we center')
+
+                self.stimulating = False
+            self.update_time()
+
+        else:
+            data = np.array(self.fish_data)
+
+            self._x = data[:, 1][~np.isnan(data[:,1])]
+            self._y = data[:, 0][~np.isnan(data[:,0])]
+
+            '''
+            _x = self.data[1]
+            _y = self.data[0]
+            x, y = self.position_transformer(_x, _y)
+            messenger.send('stimulus_update', [[x, y, 0]])
+            '''
+
+            self.theta = data[:, 2][~np.isnan(data[:, 2])]
+
+            dst_center = np.linalg.norm(np.array([self._x[-1], self._y[-1]]) - np.array(self.centered_pt))
+            # print(dst_center, self.stimulating)
+
+            if not dst_center <= self.min_fish_dst_to_center and not self.stimulating:
+                # RECENTER THS FISH #
+                if self.last_message != f"centering_at_{self.centered_pt}":
+                    self.send_centering()
+                    self.last_message = f"centering_at_{self.centered_pt}"
+
+                self.stimulating = False
+                self.update_time()
+
+            else:
+                # IF YOU MAKE IT TO HERE YOURE SHOWING STIMULI #
+                if not self.stimulating:
+                    self.current_stim_id += 1
+
+                    if self.current_stim_id > len(self.stimuli) - 1:
+                        self.end_experiment()
+                    self.current_stim = self.stimuli.iloc[self.current_stim_id]
+                    self.protocol_buddy_pub.socket.send_string('stimulus')
+                    self.protocol_buddy_pub.socket.send_pyobj(self.current_stim)
+                    x, y = self.position_transformer(self._x[-1], self._y[-1])
+                    theta = utils.angle_mean(utils.reduce_to_pi(self.theta[-5:]))
+                    self.protocol_buddy_pub.socket.send_string('stimulus_update')
+                    self.protocol_buddy_pub.socket.send_pyobj([x, y, degrees(theta)])
+
+                    self.set_x = self._x[-1]
+                    self.set_y = self._y[-1]
+                    self.set_theta = theta
+
+                    self.last_update_time = time.time()
+                    self.save([self.current_stim_id, self.current_stim], self._x[-1], self._y[-1], self.theta[-1])
+
+                    self.last_message = 'some_stimmin'
+
+                    self.stimulating = True
+                    self.stim_start = time.time()
+                if self.stimulating and time.time() - self.stim_start <= np.max(self.current_stim.duration):
+                    # this is where we'll do the updating of xytheta
+                    XCHECK = abs(np.nanmean(self._x[-15:]) - self.set_x) >= self.xy_thresh
+                    YCHECK = abs(np.nanmean(self._y[-15:]) - self.set_y) >= self.xy_thresh
+                    XYCHECK = (XCHECK or YCHECK) #and not self.current_stim.stim_type == 's' #anything but wholefield
+
+                    # print(XCHECK, abs(np.nanmean(self._x[-15:]) - self.set_x))
+
+                    # THETACHECK = (abs(np.nanmean(self.theta[-30:]) - np.nanmean(self.theta[-5:])) / abs(np.nanmean(self.theta[-8:]))) * 100 >= self.theta_thresh
+                    THETACHECK = abs(utils.angle_diff(np.nanmean(self.theta[-15:]), radians(self.set_theta))) >= radians(self.theta_thresh)
+                    # print(THETACHECK, abs(utils.angle_diff(np.nanmean(self.theta[-15:]), radians(self.set_theta))), np.nanmean(self.theta[-15:]), radians(self.set_theta))
+                    # print('THETA ', THETACHECK , (abs(np.nanmean(self.theta[-30:]) - self.theta[-1]) / abs(self.theta[-1])) * 100)
+                    if time.time() - self.last_update_time >= 0.1:
+                        if XYCHECK and THETACHECK:
+                            x, y = self.position_transformer(self._x[-1], self._y[-1])
+                            theta = degrees(utils.angle_mean(utils.reduce_to_pi((self.theta[-5:]))))
+                            self.protocol_buddy_pub.socket.send_string('stimulus_update')
+                            self.protocol_buddy_pub.socket.send_pyobj([x, y,theta])
+
+                            self.set_x = self._x[-1]
+                            self.set_y = self._y[-1]
+                            self.set_theta = theta
+                            self.save([self.current_stim_id, self.current_stim], self._x[-1], self._y[-1], self.theta[-1])
+
+                            self.last_update_time = time.time()
+                        elif XYCHECK:
+                            x, y = self.position_transformer(self._x[-1], self._y[-1])
+                            self.protocol_buddy_pub.socket.send_string('stimulus_update')
+                            self.protocol_buddy_pub.socket.send_pyobj([x, y])
+                            self.save([self.current_stim_id, self.current_stim], self._x[-1], self._y[-1], self.theta[-1])
+
+                            self.set_x = self._x[-1]
+                            self.set_y = self._y[-1]
+
+                            self.last_update_time = time.time()
+
+                        elif THETACHECK:
+                            theta = degrees(utils.angle_mean(utils.reduce_to_pi((self.theta[-5:]))))
+                            self.protocol_buddy_pub.socket.send_string('stimulus_update')
+                            self.protocol_buddy_pub.socket.send_pyobj([theta])
+
+                            self.set_theta = theta
+
+                            self.save([self.current_stim_id, self.current_stim], self._x[-1], self._y[-1], self.theta[-1])
+                            self.last_update_time = time.time()
+
+                        if time.time() - self.last_update_time >= 1 and THETACHECK or XYCHECK:
+                            x, y = self.position_transformer(self._x[-1], self._y[-1])
+                            theta = degrees(utils.angle_mean(utils.reduce_to_pi((self.theta[-5:]))))
+                            self.protocol_buddy_pub.socket.send_string('stimulus_update')
+                            self.protocol_buddy_pub.socket.send_pyobj([x, y, theta])
+                            self.last_update_time = time.time()
+
+                else:
+                    self.stimulating = False
+        self.save([self.current_stim_id, self.current_stim], self.fish_data[-1][0], self.fish_data[-1][1], self.fish_data[-1][2])
+
+class VLPrototype(BaseProtocol):
+    
