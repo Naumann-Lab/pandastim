@@ -766,7 +766,7 @@ class BrukerClosedLoopProtocol(BaseProtocol):
         #self.save([self.current_stim_id, self.current_stim], x, y, theta, data)
 
 
-class VigorLockedProtocol(BaseProtocol):
+class TailLockedProtocol(BaseProtocol):
     #adapted from ClosedLoopProtocol
     def __init__(self, *args, **kwargs):
         # update stytras timer this often (in seconds)
@@ -797,7 +797,7 @@ class VigorLockedProtocol(BaseProtocol):
         self.set_vigor = 0
 
 
-        self.current_stim = {'stim_type' : None, 'angle' : None, 'stim_name': None}
+        self.current_stim = {'stim_type' : None, 'angle' : None, 'stim_name': None, "velocity": None}
 
         super().run_experiment()
 
@@ -986,5 +986,3 @@ class VigorLockedProtocol(BaseProtocol):
                     self.stimulating = False
         self.save([self.current_stim_id, self.current_stim], self.fish_data[-1][0], self.fish_data[-1][1], self.fish_data[-1][2])
 
-class VLPrototype(BaseProtocol):
-    
