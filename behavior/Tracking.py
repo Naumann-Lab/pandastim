@@ -98,7 +98,29 @@ class TimeUpdater(Stimulus):
         self._experiment.pstim_pub.socket.send_string('pos')
         self._experiment.pstim_pub.socket.send_pyobj(data)
 
+class TailLockedTimeUpdater(TimeUpdater):
+    def update(self):
+        if self.external_starter == 0:
+            self.go.send_string('True')
+            self.external_starter = 1
+        try:
+            # check for a message, this will not block
+            times_t = self.timing.recv_string(flags=zmq.NOBLOCK)
+            self.sent_times = self.timing.recv_pyobj(flags=zmq.NOBLOCK)
+            self.exp_max = self.sent_times[0]
+            self.exp_elapsed = self.sent_times[1]
 
+            self.duration = np.float64(self.exp_max)
+
+        except zmq.Again:
+            pass
+
+    ###NOTE: the acc_tracking thing could be faulty.  Backup idea is to use stytra.collectors.accumulators.EstimatorLog or something similar
+        data = [self._experiment.estimator.get_velocity(), self._experiment.estimator.acc_tracking.get_last()]
+        self._experiment.pstim_pub.socket.send_string('pos')
+        self._experiment.pstim_pub.socket.send_pyobj(data)
+
+  
 
 class StytraDummy(Protocol):
     """
@@ -111,6 +133,10 @@ class StytraDummy(Protocol):
 
     def get_stim_sequence(self):
         return [TimeUpdater()]
+    
+class TLStytraDummy(StytraDummy):
+    def get_stim_sequence(self):
+        return [TailLockedTimeUpdater()]    
 
 
 class LocalIconButton(QToolButton):
@@ -453,7 +479,7 @@ def stytra_container(ports, camera_rot=0, roi=None, savedir=None,):
 
     app = QApplication([])
     app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
-    protocol = StytraDummy()
+    protocol = TLStytraDummy()
     exp = ExternalTrackingExperiment(protocol=protocol, app=app, dir_save=savedir,
                                      tracking=dict(method='tail', embedded=True, estimator="vigor"),#IF RUNNING TAIL TRACKING, NEED TO SWAP STYTRA X AND Y IN THEIR TAIL TRACKING PIPELINE!!
                                      camera=dict(type='spinnaker', min_framerate=155, rotation=camera_rot, roi=roi),

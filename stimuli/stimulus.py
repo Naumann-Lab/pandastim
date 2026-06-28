@@ -1738,6 +1738,29 @@ class BrukerStimulus(SequencingWithPause):
 
         return buddytask.cont
 
+class TailLockedStimulus(BrukerStimulus):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.curr_id = 0
+        self.next_stimulus = None
+    def update_stimulus(self):
+        if self.current_stimulus is not None:
+            if len(self.updating_info) == 1:
+                # this is theta
+                self.angle_rotation = self.updating_info[0]
+                self.strip_angle = self.angle_rotation + self.rotation_offset
+                self.set_transforms()
+            elif len(self.updating_info) == 2:
+                # this is X, Y
+                self.center_x, self.center_y = self.updating_info
+                self.set_transforms()
+            elif len(self.updating_info) == 3:
+                # this is X, Y, Theta
+                self.center_x, self.center_y, self.angle_rotation = self.updating_info
+                self.strip_angle = self.angle_rotation + self.rotation_offset
+                self.set_transforms()
+        
+    
 
 
 
