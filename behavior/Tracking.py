@@ -115,8 +115,10 @@ class TailLockedTimeUpdater(TimeUpdater):
         except zmq.Again:
             pass
 
-    ###NOTE: the acc_tracking thing could be faulty.  Backup idea is to use stytra.collectors.accumulators.EstimatorLog or something similar
-        data = [self._experiment.estimator.get_velocity(), self._experiment.estimator.acc_tracking.get_last()]
+        data = [self._experiment.estimator.get_velocity(), self._experiment.estimator.acc_tracking.get_last_n(n=5)]
+        #this gets live tracking of velocity from vigor estimator and the instantaneous tail angle values for the last 5 frames.
+        #the velocity is a float, the tail angle values are a pandas dataframe
+
         self._experiment.pstim_pub.socket.send_string('pos')
         self._experiment.pstim_pub.socket.send_pyobj(data)
 

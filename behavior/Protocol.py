@@ -725,7 +725,9 @@ class BrukerClosedLoopProtocol(BaseProtocol):
         while self.experiment_running:
             topic = self.position_comm.socket.recv_string()
             data = self.position_comm.socket.recv_pyobj()#right now: the vigor of the fish
-
+            if type(data[1]) == None:
+                data[1] = "FLAG"
+            print(data)
             self.fish_data.append(data)
 
             if not np.isnan(data):
@@ -781,24 +783,26 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
 
         while self.experiment_running:
             topic = self.position_comm.socket.recv_string()
-            data = self.position_comm.socket.recv_pyobj()#right now: the vigor of the fish
+            velocity, tailpos = self.position_comm.socket.recv_pyobj()
+            if time.time() > self.init_time + 0.1:
+                avg_tailpos = np.mean(tailpos["tail_sum"].values)
+                
+                self.fish_data.append((velocity, avg_tailpos))
 
-            self.fish_data.append(data)
+                if not np.isnan(velocity):
+                    self.last_fish_present = time.time()
 
-            if not np.isnan(data):
-                self.last_fish_present = time.time()
+                # trim lists
+                if len(self.fish_data) >= self.max_buffer:
+                    self.fish_data = self.fish_data[-self.max_buffer//2:]
 
-            # trim lists
-            if len(self.fish_data) >= self.max_buffer:
-                self.fish_data = self.fish_data[-self.max_buffer//2:]
-
-            self.stim_sequencer()
+                self.stim_sequencer()
 
     def stim_sequencer(self):
         # This is called every time new data arrives
 
-        data = self.fish_data
-        #data will have two parts, but i dont know what the structure will look like yet
+        velocity, avg_tailpos = self.fish_data[-1] #howtf does cleo do it??
+
 
         # IF YOU MAKE IT TO HERE YOUR SHOWING STIMULI #
         if not self.stimulating:
@@ -806,18 +810,19 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
             if self.current_stim_id > len(self.stimuli) - 1:
                 self.end_experiment()
             self.current_stim = self.stimuli.iloc[self.current_stim_id]
+
             self.curr_stim_gain = self.stimuli.loc[self.current_stim, "gain"]
             self.protocol_buddy_pub.socket.send_string('stimulus')
             self.protocol_buddy_pub.socket.send_pyobj(self.current_stim)
             x, y = self.position_transformer(self.centered_pt[1], self.centered_pt[0])
             theta = utils.angle_mean(utils.reduce_to_pi(self.centered_theta))
 
-            updated_theta = theta + tailpos
+            updated_theta = theta + avg_tailpos * self.curr_stim_gain
 
             self.protocol_buddy_pub.socket.send_string('stimulus_update')
-            self.protocol_buddy_pub.socket.send_pyobj([x, y, degrees(theta)])
+            self.protocol_buddy_pub.socket.send_pyobj([x, y, degrees(updated_theta), velocity])
             self.last_update_time = time.time()
-            self.save([self.current_stim_id, self.current_stim], x, y, self.centered_theta, data)
+            self.save([self.current_stim_id, self.current_stim], x, y, self.centered_theta, velocity, avg_tailpos)
 
             self.last_message = 'some_stimmin'
 
@@ -826,4 +831,18 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
         if self.stimulating and time.time() - self.stim_start >= np.max(self.current_stim.duration):
             self.stimulating = False
         #self.save([self.current_stim_id, self.current_stim], x, y, theta, data)
+
+        def save(self, stim, x, y, velocity, avg_tailpos):
+            self.filestream.write("\n")
+            t = time.time() - self.init_time
+            if 'duration' in stim[1]:
+                dur = stim[1]['duration']
+            else:
+                dur = 99
+            if 'stationary_time' in stim[1]:
+                stat = stim[1]['stationary_time']
+            else:
+                stat = 0
+            self.filestream.write(f"{t}_{self.current_stim_id}_{stim[1]['stim_type']}_{stim[1]['angle']}_{dur}_{stat}_{x}_{y}_{theta}_{vigor}")
+            self.filestream.flush()
 
