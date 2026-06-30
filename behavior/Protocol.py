@@ -801,7 +801,7 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
     def stim_sequencer(self):
         # This is called every time new data arrives
 
-        velocity, avg_tailpos = self.fish_data[-1] #howtf does cleo do it??
+        _, (velocity, avg_tailpos) = self.fish_data #howtf does cleo do it?
 
 
         # IF YOU MAKE IT TO HERE YOUR SHOWING STIMULI #
@@ -811,7 +811,7 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
                 self.end_experiment()
             self.current_stim = self.stimuli.iloc[self.current_stim_id]
 
-            self.curr_stim_gain = self.stimuli.loc[self.current_stim, "gain"]
+            self.curr_stim_gain = self.current_stim["gain"]#.loc[self.current_stim]
             self.protocol_buddy_pub.socket.send_string('stimulus')
             self.protocol_buddy_pub.socket.send_pyobj(self.current_stim)
             x, y = self.position_transformer(self.centered_pt[1], self.centered_pt[0])
@@ -821,9 +821,9 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
             updated_velocity = velocity * self.curr_stim_gain #might change this to be two different stims
 
             self.protocol_buddy_pub.socket.send_string('stimulus_update')
-            self.protocol_buddy_pub.socket.send_pyobj([x, y, degrees(updated_theta), updated_velocity])
+            self.protocol_buddy_pub.socket.send_pyobj([degrees(updated_theta), updated_velocity])
             self.last_update_time = time.time()
-            self.save([self.current_stim_id, self.current_stim], x, y, self.centered_theta, velocity, avg_tailpos)
+            self.save([self.current_stim_id, self.current_stim], velocity, avg_tailpos)
 
             self.last_message = 'some_stimmin'
 
@@ -833,7 +833,7 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
             self.stimulating = False
         #self.save([self.current_stim_id, self.current_stim], x, y, theta, data)
 
-        def save(self, stim, x, y, velocity, avg_tailpos):
+    def save(self, stim, velocity, avg_tailpos):
             self.filestream.write("\n")
             t = time.time() - self.init_time
             if 'duration' in stim[1]:
@@ -844,6 +844,6 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
                 stat = stim[1]['stationary_time']
             else:
                 stat = 0
-            self.filestream.write(f"{t}_{self.current_stim_id}_{stim[1]['stim_type']}_{stim[1]['angle']}_{dur}_{stat}_{x}_{y}_{theta}_{vigor}")
+            self.filestream.write(f"{t}_{self.current_stim_id}_{stim[1]['stim_type']}_{stim[1]['angle']}_{dur}_{stat}_{self.centered_theta}_{velocity}_{avg_tailpos}")
             self.filestream.flush()
 

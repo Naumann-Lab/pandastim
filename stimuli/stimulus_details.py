@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-
+import inspect
 from pandastim import utils
 
 
@@ -334,10 +334,10 @@ def monocular2binocular(
     return BinocularStimulusDetails(**new_stim_dict)
 
 
-def legacy2current(stim_df, tex="grating_gray", duration=15, stationary_time=10):#trasnferred to utils...
+def legacy2current(stim_df, tex="grating_gray", duration=15, stationary_time=10, frequency=48):#trasnferred to utils...
     import inspect
 
-    texDict = {"texture_name": "grating_gray", "frequency": 48}
+    texDict = {"texture_name": tex, "frequency": frequency}
     createdTexture = utils.createTexture(texDict)
     createdTextures = (createdTexture, createdTexture)  # assumes same textures
     stimSequence = []
@@ -371,7 +371,6 @@ def legacy2current_singlestim(
     stim_df, tex="grating_gray", frequency=32, duration=15, stationary_time=10, texture_size = 1024,
     dark_value = 0, light_value = 255):
     """for a single stimuli. legacy: dataframe format; current: stimulus_details format"""
-    import inspect
     stimDict = dict(stim_df)
     if type(stimDict['stim_type']) == list:  # masked
         stimulus = []
@@ -408,9 +407,13 @@ def legacy2current_singlestim(
         except:
             pass
         # create real texture
-        texDict = {"texture_name": tex, "frequency": int(frequency), "texture_size": texture_size,
-                   "light_value": light_value, "dark_value": dark_value, "circle_center": stimDict['circle_center'],
-                   "circle_radius": stimDict['circle_radius']}
+        if "circle_radius" in stimDict:
+            texDict = {"texture_name": tex, "frequency": int(frequency), "texture_size": texture_size,
+                    "light_value": light_value, "dark_value": dark_value, "circle_center": stimDict['circle_center'],
+                    "circle_radius": stimDict['circle_radius']}
+        else:
+            texDict = {"texture_name": tex, "frequency": int(frequency), "texture_size": texture_size,
+                    "light_value": light_value, "dark_value": dark_value}
         createdTexture = utils.createTexture(texDict)
         createdTextures = (createdTexture, createdTexture)
         if stimDict['stim_type'] == 'b':#hasattr(stimDict["angle"], "__iter__"):
@@ -419,6 +422,7 @@ def legacy2current_singlestim(
                     for k, v in stimDict.items()
                     if k in list(inspect.signature(BinocularStimulusDetails).parameters)
                 }
+
             detail_dict["duration"] = (detail_dict["duration"], detail_dict["duration"])
             detail_dict["stationary_time"] = (detail_dict["stationary_time"], detail_dict["stationary_time"])
             del detail_dict['texture']
@@ -454,3 +458,4 @@ def legacy2current_singlestim(
             del detail_dict['texture']
             stimulus = MaskedStimulusDetails(texture=createdTexture, **detail_dict)
     return stimulus
+

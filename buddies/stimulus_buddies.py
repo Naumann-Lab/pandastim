@@ -410,10 +410,11 @@ class BrukerBuddy(StimulusBuddy):
                         self.buddy_protocol_pub.socket.send_pyobj('pause')
                     else:
                         data = stimulus_details.legacy2current_singlestim(data,
-                                                           light_value = self.default_params['light_value'],
-                                                           dark_value=self.default_params['dark_value'],
-                                                           frequency = self.default_params['frequency'],
-                                                           texture_size=self.default_params['window_size'])
+                                                        light_value = self.default_params['light_value'],
+                                                        dark_value=self.default_params['dark_value'],
+                                                        frequency = self.default_params['frequency'],
+                                                        texture_size=self.default_params['window_size'])
+
                         self.append_queue(data)
                 case "stimulus_update":
                     self.set_updating(data)
