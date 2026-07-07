@@ -1745,7 +1745,7 @@ class TailLockedStimulus(BrukerStimulus):
         self.next_stimulus = None
         self.strip_angle = 0 #ERR!!!! WARNING!!!! THIS IS PROBABLY WRONG
     def update_stimulus(self):
-        print(self.updating_info)
+        print("UI:", self.updating_info)
         if self.current_stimulus is not None:
             if len(self.updating_info) == 1:
                 # this is theta

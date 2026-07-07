@@ -801,7 +801,17 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
     def stim_sequencer(self):
         # This is called every time new data arrives
 
-        _, (velocity, avg_tailpos) = self.fish_data #howtf does cleo do it?
+    
+        data = self.fish_data #howtf does cleo do it?
+
+        if len(data[0]) > 2:
+            data = data[1:]
+
+        data = np.array(data)
+
+        self._tailpos = data[:, 1][~np.isnan(data[:,1])]
+        self._velocity = data[:, 0][~np.isnan(data[:,0])]
+
 
 
         # IF YOU MAKE IT TO HERE YOUR SHOWING STIMULI #
@@ -814,16 +824,16 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
             self.curr_stim_gain = self.current_stim["gain"]#.loc[self.current_stim]
             self.protocol_buddy_pub.socket.send_string('stimulus')
             self.protocol_buddy_pub.socket.send_pyobj(self.current_stim)
-            x, y = self.position_transformer(self.centered_pt[1], self.centered_pt[0])
+            # x, y = self.position_transformer(self.centered_pt[1], self.centered_pt[0])
             theta = utils.angle_mean(utils.reduce_to_pi(self.centered_theta))
 
-            updated_theta = theta + avg_tailpos * self.curr_stim_gain
-            updated_velocity = velocity * self.curr_stim_gain #might change this to be two different stims
+            updated_theta = theta + self._tailpos * self.curr_stim_gain
+            updated_velocity = self._velocity * self.curr_stim_gain #might change this to be two different stims
 
             self.protocol_buddy_pub.socket.send_string('stimulus_update')
             self.protocol_buddy_pub.socket.send_pyobj([degrees(updated_theta), updated_velocity])
             self.last_update_time = time.time()
-            self.save([self.current_stim_id, self.current_stim], velocity, avg_tailpos)
+            self.save([self.current_stim_id, self.current_stim], self._velocity, self._tailpos)
 
             self.last_message = 'some_stimmin'
 
