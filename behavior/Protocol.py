@@ -798,21 +798,29 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
 
                 self.stim_sequencer()
 
+    def closed_loop_stim_update(self):
+            # x, y = self.position_transformer(self.centered_pt[1], self.centered_pt[0])
+            self.curr_stim_gain = self.current_stim["gain"]#.loc[self.current_stim]
+            theta = utils.angle_mean(utils.reduce_to_pi(self.centered_theta))
+            updated_theta = theta + self._tailpos * self.curr_stim_gain
+            updated_velocity = self._velocity * self.curr_stim_gain #might change this to be two different stims
+            self.protocol_buddy_pub.socket.send_string('stimulus_update')
+            self.protocol_buddy_pub.socket.send_pyobj([degrees(updated_theta), updated_velocity])
+            self.last_update_time = time.time()
+            self.save([self.current_stim_id, self.current_stim], self._velocity, self._tailpos)
+
+
+
     def stim_sequencer(self):
         # This is called every time new data arrives
-
-    
-        data = self.fish_data #howtf does cleo do it?
-
+        data = self.fish_data 
         if len(data[0]) > 2:
             data = data[1:]
-
         data = np.array(data)
-
-        self._tailpos = data[:, 1][~np.isnan(data[:,1])]
-        self._velocity = data[:, 0][~np.isnan(data[:,0])]
-
-
+        buncha_tailpos = data[:, 1][~np.isnan(data[:,1])]
+        buncha_velocity = data[:, 0][~np.isnan(data[:,0])]
+        self._tailpos = buncha_tailpos[-1]
+        self._velocity = buncha_velocity[-1]
 
         # IF YOU MAKE IT TO HERE YOUR SHOWING STIMULI #
         if not self.stimulating:
@@ -820,28 +828,26 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
             if self.current_stim_id > len(self.stimuli) - 1:
                 self.end_experiment()
             self.current_stim = self.stimuli.iloc[self.current_stim_id]
-
-            self.curr_stim_gain = self.current_stim["gain"]#.loc[self.current_stim]
             self.protocol_buddy_pub.socket.send_string('stimulus')
             self.protocol_buddy_pub.socket.send_pyobj(self.current_stim)
-            # x, y = self.position_transformer(self.centered_pt[1], self.centered_pt[0])
-            theta = utils.angle_mean(utils.reduce_to_pi(self.centered_theta))
-
-            updated_theta = theta + self._tailpos * self.curr_stim_gain
-            updated_velocity = self._velocity * self.curr_stim_gain #might change this to be two different stims
-
-            self.protocol_buddy_pub.socket.send_string('stimulus_update')
-            self.protocol_buddy_pub.socket.send_pyobj([degrees(updated_theta), updated_velocity])
-            self.last_update_time = time.time()
-            self.save([self.current_stim_id, self.current_stim], self._velocity, self._tailpos)
-
+            self.closed_loop_stim_update()
+            
             self.last_message = 'some_stimmin'
-
             self.stimulating = True
             self.stim_start = time.time()
-        if self.stimulating and time.time() - self.stim_start >= np.max(self.current_stim.duration):
+
+        if self.stimulating and time.time() - self.stim_start < self.current_stim.duration:
+            self.tlmot = self.current_stim["taillock_on_motion"]
+            self.tlstat = self.current_stim["taillock_stationary"]
+
+            if time.time() - self.stim_start < self.current_stim["stationary_time"]:
+                if self.tlstat:
+                    self.closed_loop_stim_update()
+            elif time.time() - self.stim_start >= self.current_stim["stationary_time"]:
+                if self.tlmot:
+                    self.closed_loop_stim_update()
+        elif self.stimulating and time.time() - self.stim_start >= self.current_stim.duration:
             self.stimulating = False
-        #self.save([self.current_stim_id, self.current_stim], x, y, theta, data)
 
     def save(self, stim, velocity, avg_tailpos):
             self.filestream.write("\n")
