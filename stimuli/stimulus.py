@@ -1744,23 +1744,131 @@ class TailLockedStimulus(BrukerStimulus):
         self.curr_id = 0
         self.next_stimulus = None
         self.strip_angle = 0 #ERR!!!! WARNING!!!! THIS IS PROBABLY WRONG
+
+    def move_binocular(self, move_binocular_task):
+        ### LEFT SIDE ###
+        if move_binocular_task.time <= self.current_stimulus.stationary_time[0]:
+            new_position_left = 0
+        elif move_binocular_task.time >= self.current_stimulus.duration[0] != -1:
+            if self.default_params["hold_onfinish"]:
+                new_position_left = self.new_position[0]
+            else:
+                self.left_card.detach_node()
+                new_position_left = None
+        elif (
+            not np.isnan(self.current_stimulus.hold_after[0])
+            and move_binocular_task.time >= self.current_stimulus.hold_after[0]
+        ):
+            new_position_left = self.new_position[0]
+        else:
+            new_position_left = (move_binocular_task.time * self.current_stimulus.velocity[0])#remove -time because it works now
+            self.left_card.setTexPos(
+                self.left_texture_stage,
+                new_position_left + self.current_stimulus.position[0],
+                self.current_stimulus.position[1],
+                0,
+            )  # u, v, w
+
+        ### RIGHT SIDE ###
+        # self.tlmot = self.current_stimulus["taillock_on_motion"]
+        # self.tlstat = self.current_stimulus["taillock_stationary"]
+        print("COM REF:", self.current_stimulus["taillock_on_motion"])
+
+        if move_binocular_task.time <= self.current_stimulus.stationary_time[1]:
+            new_position_right = 0
+        elif move_binocular_task.time >= self.current_stimulus.duration[1] != -1:
+            if self.default_params["hold_onfinish"]:
+                new_position_right = self.new_position[1]
+            else:
+                self.right_card.detach_node()
+                new_position_right = None
+        elif (
+            not np.isnan(self.current_stimulus.hold_after[1])
+            and move_binocular_task.time >= self.current_stimulus.hold_after[1]
+        ):
+            new_position_right = self.new_position[1]
+        else:
+            new_position_right = (move_binocular_task.time * (self.current_stimulus.velocity[1] + self.forward_swimming))#added forward swim adjustment
+            self.right_card.setTexPos(
+                self.right_texture_stage,
+                new_position_right + self.current_stimulus.position[0],
+                self.current_stimulus.position[1],
+                0,
+            )  # u, v, w
+
+
+
+    def set_transforms(self):
+        match self.current_stimulus:
+            case stimulus_details.MonocularStimulusDetails():
+
+
+                self.stage_transform = self.trs_transform_mono(self.current_stimulus.angle)
+                self.card.setTexTransform(
+                    self.texture_stage, self.stage_transform
+                )
+            case stimulus_details.MaskedStimulusDetailsPack():
+                for n in range(len(self.masked_stims)):
+                    self.stage_transform = self.trs_transform_mono(self.current_stimulus.masked_stim_details[n].angle)
+                    self.masked_stims[n]['card'].setTexTransform(
+                        self.masked_stims[n]['texture_stage'], self.stage_transform
+                    )
+            case stimulus_details.BinocularStimulusDetails():
+                self.mask_transform = self.trs_transform()
+                self.left_angle = (
+                    self.current_stimulus.angle[0]
+                    + self.rotation_offset+90#because that binocular stim is set up relative to the strip
+                    + self.angle_rotation
+                )
+                self.right_angle = (
+                    self.current_stimulus.angle[1]
+                    + self.rotation_offset+90#because that binocular stim is set up relative to the strip
+                    + self.angle_rotation
+                )
+
+                # Left texture
+                self.left_card.setTexTransform(
+                    self.left_mask_stage, self.mask_transform
+                )
+                self.left_card.setTexScale(self.left_texture_stage, 1 / self.scale)
+                self.left_card.setTexRotate(self.left_texture_stage, self.left_angle)
+
+                # Right texture
+                self.right_card.setTexTransform(
+                    self.right_mask_stage, self.mask_transform
+                )
+                self.right_card.setTexScale(self.right_texture_stage, 1 / self.scale)
+                self.right_card.setTexRotate(self.right_texture_stage, self.right_angle)
+
+            case _:
+                print(
+                    f"{self.current_stimulus.__class__} -- Stimulus type not understood, transform failed"
+                )
     def update_stimulus(self):
         print("UI:", self.updating_info)
-        if self.current_stimulus is not None:
-            if len(self.updating_info) == 1:
-                # this is theta
-                self.angle_rotation = self.updating_info[0]
-                self.strip_angle = self.angle_rotation + self.rotation_offset
-                self.set_transforms()
-            elif len(self.updating_info) == 2:
-                # this is X, Y
-                self.center_x, self.center_y = self.updating_info
-                self.set_transforms()
-            elif len(self.updating_info) == 3:
-                # this is X, Y, Theta
-                self.center_x, self.center_y, self.angle_rotation = self.updating_info
-                self.strip_angle = self.angle_rotation + self.rotation_offset
-                self.set_transforms()
+        if len(self.updating_info) == 2:
+            self.turning = self.updating_info[0]
+            self.forward_swimming = self.updating_info[1]
+            self.set_transforms()
+        else:
+            print(f"ERR: Recieved data is of length {len(self.updating_info)}.  It expected to be of length 2.")
+
+        #NOTE: might dip in to this if I do a fish-locked strip angle
+        # if self.current_stimulus is not None:
+        #     if len(self.updating_info) == 1:
+        #         # this is theta
+        #         self.angle_rotation = self.updating_info[0]
+        #         self.strip_angle = self.angle_rotation + self.rotation_offset
+        #         self.set_transforms()
+        #     elif len(self.updating_info) == 2:
+        #         # this is X, Y
+        #         self.center_x, self.center_y = self.updating_info
+        #         self.set_transforms()
+        #     elif len(self.updating_info) == 3:
+        #         # this is X, Y, Theta
+        #         self.center_x, self.center_y, self.angle_rotation = self.updating_info
+        #         self.strip_angle = self.angle_rotation + self.rotation_offset
+        #         self.set_transforms()
         
     
 
