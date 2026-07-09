@@ -558,8 +558,6 @@ class StimulusSequencing(ShowBase):
         ]  # rig / implementation specific offset
         self.angle_rotation = 0  # for changing angles on the fly
         self.new_position = 0  # for tracking position on the fly
-        if "tail_lock_buffer" in self.default_params.keys():
-            self.tail_lock_buffer = self.default_params["tail_lock_buffer"]
 
     def format_window(self):
         ShowBaseGlobal.globalClock.setMode(ClockObject.MLimited)
@@ -1975,7 +1973,6 @@ class TailLockedStimulus(BrukerStimulus):
 
         return move_binocular_task.cont
 
-
     def translate_cards_live(self):
         match self.current_stimulus:
             case stimulus_details.MonocularStimulusDetails():
@@ -2012,14 +2009,11 @@ class TailLockedStimulus(BrukerStimulus):
                 )
 
     def set_transforms(self):
-        self.set_transform_calltime = time.time()
-        self.last_update + self.default_params
 
         match self.current_stimulus:
             case stimulus_details.MonocularStimulusDetails():
 
-
-                self.stage_transform = self.trs_transform_mono(self.current_stimulus.angle)
+                self.stage_transform = self.trs_transform_mono(self.current_stimulus.angle + self.turning)
                 self.card.setTexTransform(
                     self.texture_stage, self.stage_transform
                 )
@@ -2062,13 +2056,14 @@ class TailLockedStimulus(BrukerStimulus):
                 print(
                     f"{self.current_stimulus.__class__} -- Stimulus type not understood, transform failed"
                 )
+
     def update_stimulus(self):
         print("UI:", self.updating_info)
         if len(self.updating_info) == 2:
             self.turning = self.updating_info[0]
             self.forward_swimming = self.updating_info[1]
+            self.translate_cards_live()
             self.set_transforms()
-            self.last_update = time.time()
         else:
             print(f"ERR: Recieved data is of length {len(self.updating_info)}.  It expected to be of length 2.")
 
