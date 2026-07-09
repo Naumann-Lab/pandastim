@@ -1772,11 +1772,12 @@ class TailLockedStimulus(BrukerStimulus):
         self.card.setTexTransform(self.texture_stage, self.stage_transform)
 
         self.curr_pos = 0
+
         self.taskMgr.add(self.move_monocular, "move_monocular")
 
     def move_monocular(self, move_monocular_task):
         if move_monocular_task.time <= self.current_stimulus.stationary_time:
-            # self.new_position = 0
+            step = 0
             pass
         elif move_monocular_task.time >= self.current_stimulus.duration != -1:
             self.clear_cards()
@@ -1786,12 +1787,11 @@ class TailLockedStimulus(BrukerStimulus):
             not np.isnan(self.current_stimulus.hold_after)
             and move_monocular_task.time >= self.current_stimulus.hold_after
         ):
-            pass
-        else:#finally moving monucular
-            #MATT CODE THAT WORKS
-            self.new_position = (
-                move_monocular_task.time - self.current_stimulus.stationary_time
-            ) * self.current_stimulus.velocity
+            step = 0
+        else:
+            step = globalClock.getDt() * self.current_stimulus.velocity
+            self.curr_pos += step
+            self.new_position = self.curr_pos
             self.stage_transform = self.trs_transform_mono(self.current_stimulus.angle, self.new_position)
             self.card.setTexTransform(
                 self.texture_stage, self.stage_transform
@@ -1912,7 +1912,8 @@ class TailLockedStimulus(BrukerStimulus):
         self.right_card.setTexRotate(self.right_texture_stage, self.right_angle)
 
         # start the movement once everything is set up
-        self.curr_pos = self.current_stimulus.position[0]
+        self.curr_pos_right = self.current_stimulus.position[0]
+        self.curr_pos_left = self.current_stimulus.position[0]
         self.taskMgr.add(self.move_binocular, "move_binocular")
 
     def move_binocular(self, move_binocular_task):
@@ -1931,8 +1932,8 @@ class TailLockedStimulus(BrukerStimulus):
         ):
             step_left = 0
         else:
-            step_left = math.cos(self.curr_left_angle) * (globalClock.getDt() * self.current_stimulus.velocity[0])
-            new_position_left = self.curr_pos + step_left
+            step_left =  globalClock.getDt() * self.current_stimulus.velocity[0]
+            new_position_left = self.curr_pos_left + step_left
             self.left_card.setTexPos(
                 self.left_texture_stage,
                 new_position_left,
@@ -1955,8 +1956,8 @@ class TailLockedStimulus(BrukerStimulus):
         ):
             step_right = 0
         else:
-            step_right = math.cos(self.curr_right_angle) * (globalClock.getDt() * self.current_stimulus.velocity[1])
-            new_position_right = self.curr_pos + step_right
+            step_right = globalClock.getDt() * self.current_stimulus.velocity[1]
+            new_position_right = self.curr_pos_right + step_right
             self.right_card.setTexPos(
                 self.right_texture_stage,
                 new_position_right,
@@ -1975,33 +1976,40 @@ class TailLockedStimulus(BrukerStimulus):
         return move_binocular_task.cont
 
 
-    def move_cards_live(self):
-            if time.time() - self.moving_task_start < self.current_stimulus.stationary_time[1]:
-                
-            self.right_card.setTexPos(
-                self.right_texture_stage,
-                new_position_right + self.current_stimulus.position[0],
-                self.current_stimulus.position[1],
-                0,
-            )  # u, v, w
+    def translate_cards_live(self):
+        match self.current_stimulus:
+            case stimulus_details.MonocularStimulusDetails():
 
-
-
-
-
-        # match self.current_stimulus:
-        #     case stimulus_details.MonocularStimulusDetails():
-        #         pass
-        #     case stimulus_details.BinocularStimulusDetails():
-        #         pass
-        #     case stimulus_details.MaskedStimulusDetailsPack():
-        #         print("Sorry, MaskedStimulusDetails have not been implemented")
-        #     case _:
-        #         print(
-        #             f"{self.current_stimulus.__class__} -- Stimulus type not understood, transform failed"
-        #         )
-
-
+                step = globalClock.getDt() * self.forward_swimming * math.cos(self.current_stimulus.angle)
+                self.curr_pos += step
+                self.new_position = self.curr_pos
+                self.stage_transform = self.trs_transform_mono(self.current_stimulus.angle, self.new_position)
+                self.card.setTexTransform(
+                self.texture_stage, self.stage_transform
+            )
+            case stimulus_details.BinocularStimulusDetails():
+                step_right  = (math.cos(self.curr_right_angle) * self.forward_swimming) * globalClock.getDt()
+                step_left  = (math.cos(self.curr_left_angle) * self.forward_swimming) * globalClock.getDt()     
+                self.curr_pos_right += step_right
+                self.curr_pos_left += step_left
+                self.right_card.setTexPos(
+                    self.right_texture_stage,
+                    self.curr_pos_right,
+                    self.current_stimulus.position[1],
+                    0,
+                )
+                self.left_card.setTexPos(
+                    self.left_texture_stage,
+                    self.curr_pos_left,
+                    self.current_stimulus.position[1],
+                    0,
+                )
+            case stimulus_details.MaskedStimulusDetailsPack():
+                print("Sorry, MaskedStimulusDetails have not been implemented")
+            case _:
+                print(
+                    f"{self.current_stimulus.__class__} -- Stimulus type not understood, transform failed"
+                )
 
     def set_transforms(self):
         self.set_transform_calltime = time.time()
