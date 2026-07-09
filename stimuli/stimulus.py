@@ -1772,7 +1772,7 @@ class TailLockedStimulus(BrukerStimulus):
         ### RIGHT SIDE ###
         # self.tlmot = self.current_stimulus["taillock_on_motion"]
         # self.tlstat = self.current_stimulus["taillock_stationary"]
-        print("COM REF:", self.current_stimulus["taillock_on_motion"])
+        print("COM REF:", self.current_stimulus)
 
         if move_binocular_task.time <= self.current_stimulus.stationary_time[1]:
             new_position_right = 0
@@ -1869,6 +1869,31 @@ class TailLockedStimulus(BrukerStimulus):
         #         self.center_x, self.center_y, self.angle_rotation = self.updating_info
         #         self.strip_angle = self.angle_rotation + self.rotation_offset
         #         self.set_transforms()
+    def buddy_task(self, buddytask):
+        """talk to a stytrabuddy about what task the buddy should do"""
+
+        self.buddy.pauseStatus(self.paused)
+        self.buddy.position(self.new_position)
+        self.buddy.stimulus(self.current_stimulus)
+        print("CSTEST",self.buddy.stimulus)
+        self.updating, self.updating_info = self.buddy.request_updating()
+        self.next_stimulus = self.buddy.request_stimulus()#request next stimulus from buddy
+        if self.next_stimulus is not None:#if there is a stimulus change
+            if isinstance(self.next_stimulus, stimulus_details.MonocularStimulusDetails)\
+                or isinstance(self.next_stimulus, stimulus_details.BinocularStimulusDetails)\
+                or isinstance(self.next_stimulus, stimulus_details.MaskedStimulusDetailsPack):#handles input of stimulus object
+                self.clear_cards()
+                self.current_stimulus = self.next_stimulus
+                self.next_stimulus = None
+                self.set_stimulus()
+            else:
+                print('stim input to stimulus.py has to be an object belong to stimulus_details class')
+        elif self.updating:
+            self.update_stimulus()
+        self.buddy.broadcaster()#slight delay of one round in reporting new stimulus because we have to wait till buddy is updated faster
+
+        return buddytask.cont
+
         
     
 
