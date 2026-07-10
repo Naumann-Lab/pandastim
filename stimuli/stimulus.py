@@ -2058,7 +2058,7 @@ class TailLockedStimulus(BrukerStimulus):
                 )
 
     def update_stimulus(self):
-        print("UI:", self.updating_info)
+
         if len(self.updating_info) == 2:
             self.turning = self.updating_info[0]
             self.forward_swimming = self.updating_info[1]

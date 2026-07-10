@@ -799,15 +799,16 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
                 self.stim_sequencer()
 
     def closed_loop_stim_update(self):
+            #this is also where you would filter out jitter
             # x, y = self.position_transformer(self.centered_pt[1], self.centered_pt[0])
             self.curr_stim_gain = self.current_stim["gain"]#.loc[self.current_stim]
-            theta = utils.angle_mean(utils.reduce_to_pi(self.centered_theta))
-            updated_theta = theta + self._tailpos * self.curr_stim_gain
-            updated_velocity = cos(updated_theta)*self._velocity * self.curr_stim_gain #might change this to be two different stims
+            #theta = utils.angle_mean(utils.reduce_to_pi(self.centered_theta))  #use this for fish lock I think
+            updated_tailpos = self._tailpos * self.curr_stim_gain
+            updated_velocity = self._velocity * self.curr_stim_gain #might change this to be two different stims
             self.protocol_buddy_pub.socket.send_string('stimulus_update')
-            self.protocol_buddy_pub.socket.send_pyobj([degrees(updated_theta), updated_velocity])
+            self.protocol_buddy_pub.socket.send_pyobj([degrees(updated_tailpos), updated_velocity])
             self.last_update_time = time.time()
-            self.save([self.current_stim_id, self.current_stim], updated_velocity, updated_theta)
+            self.save([self.current_stim_id, self.current_stim], updated_velocity, updated_tailpos)
 
 
 
