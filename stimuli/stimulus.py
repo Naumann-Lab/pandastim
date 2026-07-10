@@ -31,7 +31,7 @@ from panda3d.core import (CardMaker, ClockObject, ColorBlendAttrib, Transparency
 
 from pandastim import utils
 from pandastim.stimuli import stimulus_details, textures
-from panda3d.core.ClockObject import globalClock
+
 
 
 class StimulusSequencing(ShowBase):
@@ -1745,7 +1745,7 @@ class TailLockedStimulus(BrukerStimulus):
         self.curr_id = 0
         self.next_stimulus = None
         self.strip_angle = 0 #ERR!!!! WARNING!!!! THIS IS PROBABLY WRONG
-        self.curr_right_angle = self.curr_left_angle = 0
+        self.curr_right_angle = self.curr_left_angle = self.new_position_left = self.new_position_right = 0
 
     def set_monocular(self):
         #PLAYGROUND
@@ -1787,16 +1787,14 @@ class TailLockedStimulus(BrukerStimulus):
         ):
             step = 0
         else:
-            step = globalClock.getDt() * self.current_stimulus.velocity
-            self.curr_pos += step
-            self.new_position = self.curr_pos
-            self.stage_transform = self.trs_transform_mono(self.current_stimulus.angle, self.new_position)
-            self.card.setTexTransform(
-                self.texture_stage, self.stage_transform
-            )
-            # self.card.setTexPos(
-            #     self.texture_stage, self.new_position + self.center_x, self.center_y, 0
-            # )  # u, v, w
+            step = ShowBaseGlobal.globalClock.getDt() * self.current_stimulus.velocity
+        self.curr_pos += step
+        self.new_position = self.curr_pos
+        self.stage_transform = self.trs_transform_mono(self.current_stimulus.angle, self.new_position)
+        self.card.setTexTransform(
+            self.texture_stage, self.stage_transform
+        )
+
         return move_monocular_task.cont
 
     def set_binocular(self):
@@ -1917,7 +1915,7 @@ class TailLockedStimulus(BrukerStimulus):
     def move_binocular(self, move_binocular_task):
         ### LEFT SIDE ###
         if move_binocular_task.time <= self.current_stimulus.stationary_time[0]:
-            step = 0
+            step_left = 0
         elif move_binocular_task.time >= self.current_stimulus.duration[0] != -1:
             if self.default_params["hold_onfinish"]:
                 step_left = 0
@@ -1930,14 +1928,15 @@ class TailLockedStimulus(BrukerStimulus):
         ):
             step_left = 0
         else:
-            step_left =  globalClock.getDt() * self.current_stimulus.velocity[0]
-            new_position_left = self.curr_pos_left + step_left
-            self.left_card.setTexPos(
-                self.left_texture_stage,
-                new_position_left,
-                self.current_stimulus.position[1],
-                0,
-            )  # u, v, w
+            step_left =  ShowBaseGlobal.globalClock.getDt() * self.current_stimulus.velocity[0]
+
+        new_position_left = self.curr_pos_left + step_left
+        self.left_card.setTexPos(
+            self.left_texture_stage,
+            new_position_left,
+            self.current_stimulus.position[1],
+            0,
+        )  # u, v, w
 
         ### RIGHT SIDE ###
         if move_binocular_task.time <= self.current_stimulus.stationary_time[1]:
@@ -1954,14 +1953,15 @@ class TailLockedStimulus(BrukerStimulus):
         ):
             step_right = 0
         else:
-            step_right = globalClock.getDt() * self.current_stimulus.velocity[1]
-            new_position_right = self.curr_pos_right + step_right
-            self.right_card.setTexPos(
-                self.right_texture_stage,
-                new_position_right,
-                self.current_stimulus.position[1],
-                0,
-            )  # u, v, w
+            step_right = ShowBaseGlobal.globalClock.getDt() * self.current_stimulus.velocity[1]
+
+        new_position_right = self.curr_pos_right + step_right
+        self.right_card.setTexPos(
+            self.right_texture_stage,
+            new_position_right,
+            self.current_stimulus.position[1],
+            0,
+        )  # u, v, w
 
         self.new_position = new_position_left, new_position_right
 
@@ -1977,7 +1977,7 @@ class TailLockedStimulus(BrukerStimulus):
         match self.current_stimulus:
             case stimulus_details.MonocularStimulusDetails():
 
-                step = globalClock.getDt() * self.forward_swimming * math.cos(self.current_stimulus.angle)
+                step = ShowBaseGlobal.globalClock.getDt() * self.forward_swimming * math.cos(self.current_stimulus.angle)
                 self.curr_pos += step
                 self.new_position = self.curr_pos
                 self.stage_transform = self.trs_transform_mono(self.current_stimulus.angle, self.new_position)
@@ -1985,8 +1985,8 @@ class TailLockedStimulus(BrukerStimulus):
                 self.texture_stage, self.stage_transform
             )
             case stimulus_details.BinocularStimulusDetails():
-                step_right  = (math.cos(self.curr_right_angle) * self.forward_swimming) * globalClock.getDt()
-                step_left  = (math.cos(self.curr_left_angle) * self.forward_swimming) * globalClock.getDt()     
+                step_right  = (math.cos(self.curr_right_angle) * self.forward_swimming) * ShowBaseGlobal.globalClock.getDt()
+                step_left  = (math.cos(self.curr_left_angle) * self.forward_swimming) * ShowBaseGlobal.globalClock.getDt()     
                 self.curr_pos_right += step_right
                 self.curr_pos_left += step_left
                 self.right_card.setTexPos(
