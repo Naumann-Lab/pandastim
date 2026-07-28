@@ -384,12 +384,19 @@ class BrukerClosedLoopProtocol(BaseProtocol):
 
         # IF YOU MAKE IT TO HERE YOUR SHOWING STIMULI #
         if not self.stimulating:
-            self.current_stim_id += 1
-            if self.current_stim_id > len(self.stimuli) - 1:
-                self.end_experiment()
-            self.current_stim = self.stimuli.iloc[self.current_stim_id]
+            #T^T request improv stimulus deets here
+            #unpack into: current_stim_id, current_stim, and ALL OTHER DETAILS
+            # need end experiment keyword : self.end_experiment()
+            topic = self.improv_protocol_sub.socket.recv_string()
+            stim_deets = self.improv_protocol_sub.socket.recv_pyobj()
+
+            self.current_stim #T^T: do an unpacking of stim deets right here and send as current stim 
+
+
             self.protocol_buddy_pub.socket.send_string('stimulus')
             self.protocol_buddy_pub.socket.send_pyobj(self.current_stim)
+
+
             x, y = self.position_transformer(self.centered_pt[1], self.centered_pt[0])
             theta = utils.angle_mean(utils.reduce_to_pi(self.centered_theta))
             self.protocol_buddy_pub.socket.send_string('stimulus_update')

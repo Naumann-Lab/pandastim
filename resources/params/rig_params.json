@@ -34,7 +34,7 @@
     "rig_number": 
     0,
     "roi": [0, 0, 2048, 2048],
-    "camera_rotation": 0,
+    "camera_rotation": 90,
     "xy_thresh": 20,
     "theta_thresh": 8.5,
     "centering_stimulus": "phototaxis",

@@ -35,13 +35,10 @@ class StimulusSequencing(ShowBase):
     def __init__(self, stimuli=None, params_path="default", buddy=None):
         super().__init__()
 
-        self.stimuli = stimuli #T^T
-
-
 
         #T^T: basically what i need is to put a socket right here to talk w improv!
-        # add: print("Listening for Improv Connection")
-        #     
+        # add: print("Listening for Improv Connection") maybe not tho, maybe buddy does everything
+        
         # if we have a stimbuddy start a task running
         self.buddy = buddy
         if self.buddy:
@@ -1098,7 +1095,7 @@ class BrukerStimulus(SequencingWithPause):
         """talk to a stytrabuddy about what task the buddy should do"""
         self.buddy.pauseStatus(self.paused)
         self.buddy.position(self.new_position)
-        self.buddy.stimulus(self.current_stimulus)
+        # self.buddy.stimulus(self.current_stimulus)
 
 
         #T^T : I think this is like THE core thing that needs to change

@@ -113,21 +113,21 @@ class StimulusBuddy(DirectObject.DirectObject):
         else:
             self._motion = False
 
-    def stimulus(self, newstimulus):
-        try:
-            if (
-                    newstimulus.stim_name != self._stimulus.stim_name
-                and self._stimChange == False
-            ):
-                self._stimulus = newstimulus
-                self._stimChange = True
-            else:
-                self._stimChange = False
-        except AttributeError:
-            # we end up here on first pass
-            self._stimulus = newstimulus
-            if newstimulus is not None:#before the first stimulus got assigned
-                self._stimChange = True
+    # def stimulus(self, newstimulus):
+    #     try:
+    #         if (
+    #                 newstimulus.stim_name != self._stimulus.stim_name
+    #             and self._stimChange == False
+    #         ):
+    #             self._stimulus = newstimulus
+    #             self._stimChange = True
+    #         else:
+    #             self._stimChange = False
+    #     except AttributeError:
+    #         # we end up here on first pass
+    #         self._stimulus = newstimulus
+    #         if newstimulus is not None:#before the first stimulus got assigned
+    #             self._stimChange = True
 
     def broadcaster(self):
         match self.reportingMethod:
@@ -232,24 +232,12 @@ class StimulusBuddy(DirectObject.DirectObject):
             # self.filestream.write(f"{timestamp}_&_{stiminfo}")
             self.filestream.flush()
 
-    def view_queue(self):
-        return self.queue
-
-    def append_queue(self, item):
-        self.queue.append(item)
-
-    def pop_queue(self, index=0):
-        item = self.queue.pop(index)
-        return item
-
     def request_stimulus(self):
         if self._pauseStatus:
             return None
-        elif len(self.queue) == 0:
-            return None
         else:
-            self.lastReturnedStim = self.pop_queue()
-            return self.lastReturnedStim
+            return self._stimulus #T^T
+
 
     def proceed_alignment(self):
         self.output(f"pause")
@@ -405,10 +393,20 @@ class BrukerBuddy(StimulusBuddy):
                                                                                    angular_velocity = 0.)
                         self.append_queue(blank_stimulus)#called it pet turtle because turtles are like rocks
                 case "stimulus":
+                    #T^T DO SMYTHING ELSE WITH STIM HERE
+
                     if data.stim_name == 'pause':
                         self.buddy_protocol_pub.socket.send_string('pause_status')
                         self.buddy_protocol_pub.socket.send_pyobj('pause')
+
+                    elif data.stim_name == "idle":
+                        blank_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'pet turtle',
+                                                                                    texture = textures.BlankTex(),
+                                                                                    velocity=0., angle=0,
+                                                                                    angular_velocity = 0.)
+
                     else:
+
                         data = stimulus_details.legacy2current_singlestim(data,
                                                         light_value = self.default_params['light_value'],
                                                         dark_value=self.default_params['dark_value'],
@@ -419,4 +417,4 @@ class BrukerBuddy(StimulusBuddy):
                 case "stimulus_update":
                     self.set_updating(data)
                 case _:
-                    print(  f"{topic} --  not understood, failed")
+                    print(f"{topic} --  not understood, failed")
