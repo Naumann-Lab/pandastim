@@ -24,12 +24,8 @@ import pygetwindow as gw
 
 
 class BaseProtocol(DirectObject.DirectObject):
-    def __init__(self, ports, defaults, stimuli):
+    def __init__(self, ports, defaults):
 
-        self.stimuli = stimuli
-
-        #T^T: will need a socket right here 
-        #T^T: of form Subscriber(ports["improv_protocol_socket"]) i think
         self.defaults = defaults
         self.rig_number = defaults['rig_number']
 
@@ -58,6 +54,8 @@ class BaseProtocol(DirectObject.DirectObject):
         # timing takes in [max time, elapsed time]
         self.timing_comm = utils.Publisher(port=ports['timing_socket'])
 
+        self.improv_protocol_sub = utils.Subscriber(ports["improv_protocol_socket"])
+
         self.experiment_running = False
         self.experiment_finished = False
 
@@ -69,7 +67,7 @@ class BaseProtocol(DirectObject.DirectObject):
 
         self.t_update_frequency = 1
         self.last_t_update = 0
-        #T^T: honestly probably itss more like here
+ 
 
         try:
             self.proj2cam, self.cam2proj = calibration.load_params(self.rig_number)
