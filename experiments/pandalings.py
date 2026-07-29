@@ -1,9 +1,11 @@
 #import stimuli.stimulus_details
 from pandastim.utils import port_provider, load_params,legacy2current
-from pandastim.stimuli import improv_stimulus, stimulus_details
-from pandastim.behavior.Protocol import  TailLockedProtocol
-from pandastim.behavior.Tracking import stytra_container
-from pandastim.buddies.improv_buddy import BrukerBuddy
+from pandastim.stimuli import  stimulus_details
+from pandastim.improv.improv_protocol import  TailLockedProtocol
+from pandastim.improv.improv_tracking import stytra_container
+from pandastim.improv.improv_buddy import BrukerBuddy
+from pandastim.improv import improv_stimulus
+
 from pandastim import utils
 
 import multiprocessing as mp
@@ -15,7 +17,7 @@ import subprocess
 
 parameter_path = Path(sys.executable).parents[0].joinpath(r'Lib\site-packages\pandastim\resources\params\rig_params.json')
 
-def wrapper(protocol, ports, params, parameter_path):
+def wrapper(protocol, ports, parameter_path):
     """
     :param stimuli:  a stimulus class
     :param stimulus_dataframe_path: path to an hdf that contains stimulus information
@@ -29,7 +31,7 @@ def wrapper(protocol, ports, params, parameter_path):
     stytraBuddy = BrukerBuddy(comms = ports,
                              params_path =parameter_path,
                               protocol = protocol)  # start with pausing until Go, get stytra position output
-    pstim = improv_stimulus.TailLockedStimulus(buddy=stytraBuddy, params_path=params)#, buddy_port = ports['buddy_stimulus_socket'])
+    pstim = improv_stimulus.TailLockedStimulus(buddy=stytraBuddy, params_path=parameter_path) #, buddy = ports['buddy_stimulus_socket'])
 
     pstim.run()
 
@@ -59,9 +61,11 @@ if __name__ == '__main__':
         ])
 
 
+        ###
+
         stytra_process = mp.Process(target=stytra_container, args=(_ports, camera_rot, roi, savedir,))
         if params['pstim']:
-               stimulus_process = mp.Process(target=wrapper, args=(TailLockedProtocol, _ports, params, parameter_path))
+               stimulus_process = mp.Process(target=wrapper, args=(TailLockedProtocol, _ports, parameter_path))
                stimulus_process.start()
         stytra_process.start()
         stytra_process.join()
