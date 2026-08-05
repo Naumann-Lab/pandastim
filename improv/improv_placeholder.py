@@ -1,6 +1,6 @@
 import subprocess
 import sys
-import json
+import ast
 from pandastim.utils import Publisher, Subscriber
 
 
@@ -20,11 +20,12 @@ if __name__ == "__main__":
         while running:
 
             ui = main()
-
             print(ui)
+            if ui.startswith("{"):
+                ui = ast.literal_eval(ui)
+
             improv_protocol_pub.socket.send_string("improv_details")
             improv_protocol_pub.socket.send_pyobj(ui)
-
 
 
             if ui == "quit":
