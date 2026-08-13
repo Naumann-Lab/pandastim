@@ -56,7 +56,7 @@ if __name__ == '__main__':
 
         subprocess.Popen([
                "python",
-               r"C:\Users\User\anaconda3\envs\pstim_cd\Lib\site-packages\pandastim\improv_placeholder.py",
+               r"C:\Users\User\anaconda3\envs\pstim_cd\Lib\site-packages\pandastim\improv\improv_placeholder.py",
                _ports["improv_protocol_socket"]  #I WILL DECIDE LATER IF I WANT TO CHANGE THIS TO ONLY TAKE THE ACTUAL IMPROV PORT OR IF IT WILL HAVE TO HANDLE MULTIPLE SOCKETS
         ])
 

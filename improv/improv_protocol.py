@@ -97,6 +97,10 @@ class BaseProtocol(DirectObject.DirectObject):
         data_stream = tr.Thread(target=self.position_receiver,)
         data_stream.start()
 
+        self.stim_buffer = []
+        improv_stream = tr.Thread(target=self.stim_audience,)
+        improv_stream.start()
+
     def position_receiver(self):
         """Receive fish position from tracking position_comm"""
         while self.experiment_running:
@@ -111,6 +115,26 @@ class BaseProtocol(DirectObject.DirectObject):
             # trim lists
             if len(self.fish_data) >= self.max_buffer:
                 self.fish_data = self.fish_data[-self.max_buffer//2:]
+
+    def stim_audience(self):
+        """
+        Thread to constantly listen to improv and update when needed
+        """
+
+        topic = self.improv_protocol_sub.socket.recv_string()
+        message = self.improv_protocol_sub.socket.recv_pyobj()
+        if message == "END_EXPERIMENT":
+            self.end_experiment()
+            return 0
+        
+        if self.current_stim != None:
+            self.stim_buffer.append(message)
+        else:
+            self.current_stim = message
+
+
+
+        
 
     def centering_calibration(self):
         """receive clicking on the different icons for calibration and tell buddy to display calibration stimuli
@@ -380,16 +404,12 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
         self.stimulating = False
 
         super().__init__(*args, **kwargs)
-        self.stim_sequencer()
+
 
     def position_receiver(self):
 
         while self.experiment_running:
-            print("yeah it this")
-            topic = self.improv_protocol_sub.socket.recv_string()
-            message = self.improv_protocol_sub.socket.recv_pyobj()
 
-            print(message)
             topic = self.position_comm.socket.recv_string()
             velocity, tailpos = self.position_comm.socket.recv_pyobj()
             if time.time() > self.init_time + 0.1:
@@ -418,14 +438,22 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
             self.last_update_time = time.time()
             self.save([self.current_stim_id, self.current_stim], updated_velocity, updated_tailpos)
 
+    def stim_audience(self):
+        """
+        Thread to constantly listen to improv and update when needed
+        """
+        topic = self.improv_protocol_sub.socket.recv_string()
+        message = self.improv_protocol_sub.socket.recv_pyobj()
+        if message == "END_EXPERIMENT":
+            self.end_experiment()
+            return 0
+        
+        if self.current_stim != None:
+            self.stim_buffer.append(message)
+        else:
+            self.stim_suggestion(message)
 
 
-
-
-
-
-
-##############HALF-BAK
 
     def stim_sequencer(self):
         # This is called every time new data arrives
@@ -440,33 +468,39 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
 
         # IF YOU MAKE IT TO HERE YOUR SHOWING STIMULI #
         if not self.stimulating:
-            topic = self.improv_protocol_sub.socket.recv_string()
-            stim_deets = self.improv_protocol_sub.socket.recv_pyobj()
-            if stim_deets == "END_EXPERIMENT":     #T^T
-                self.end_experiment()
-            else:
-                print(stim_deets)
-        #     self.current_stim = self.stimuli.iloc[self.current_stim_id]
-        #     self.protocol_buddy_pub.socket.send_string('stimulus')
-        #     self.protocol_buddy_pub.socket.send_pyobj(self.current_stim)
-        #     self.closed_loop_stim_update()
-            
-        #     self.last_message = 'some_stimmin'
-        #     self.stimulating = True
-        #     self.stim_start = time.time()
+            if len(self.stim_buffer) > 0:
+                self.stim_suggestion(self.stim_buffer[0])
+                self.stim_buffer = self.stim_buffer[1:]
 
-        # if self.stimulating and time.time() - self.stim_start < self.current_stim.duration:
-        #     self.tlmot = self.current_stim["taillock_on_motion"]
-        #     self.tlstat = self.current_stim["taillock_stationary"]
+        if self.stimulating and time.time() - self.stim_start < self.current_stim.duration:
+            self.tlmot = self.current_stim["taillock_on_motion"]
+            self.tlstat = self.current_stim["taillock_stationary"]
 
-        #     if time.time() - self.stim_start < self.current_stim["stationary_time"]:
-        #         if self.tlstat:
-        #             self.closed_loop_stim_update()
-        #     elif time.time() - self.stim_start >= self.current_stim["stationary_time"]:
-        #         if self.tlmot:
-        #             self.closed_loop_stim_update()
-        # elif self.stimulating and time.time() - self.stim_start >= self.current_stim.duration:
-        #     self.stimulating = False
+            if time.time() - self.stim_start < self.current_stim["stationary_time"]:
+                if self.tlstat:
+                    self.closed_loop_stim_update()
+            elif time.time() - self.stim_start >= self.current_stim["stationary_time"]:
+                if self.tlmot:
+                    self.closed_loop_stim_update()
+        elif self.stimulating and time.time() - self.stim_start >= self.current_stim.duration:
+            self.stimulating = False
+            self.current_stim = None
+
+
+
+    def stim_suggestion(self, stim_details):
+        """
+        gets called by stim audience every time there is an improv message
+        """
+        self.current_stim = stim_details
+        self.current_stim_id += 1
+        self.protocol_buddy_pub.socket.send_string('stimulus')
+        self.protocol_buddy_pub.socket.send_pyobj(self.current_stim)
+        self.closed_loop_stim_update()
+        self.last_message = 'some_stimmin'
+        self.stimulating = True
+        self.stim_start = time.time()
+        
 
     def save(self, stim, velocity, avg_tailpos):
             self.filestream.write("\n")

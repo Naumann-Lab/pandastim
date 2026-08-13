@@ -46,7 +46,7 @@ class TimeUpdater(Stimulus):
         # This takes in timing information from external protocol
         self.timing = None
         # initializes with some bogus duration as a buffer
-        self.duration = 5 ### T^T we may need to specify another duration somewhere... tbd
+        self.duration = 99999999 ### T^T we may need to specify another duration somewhere... tbd
 
         # initializes the variables to measure the time
         self.sent_times = 0
