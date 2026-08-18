@@ -45,7 +45,7 @@ class StimulusSequencing(ShowBase):
             self.taskMgr.add(self.buddy_task, "buddy")
 
 
-        print("PARAMPATH", params_path)
+        print("MONOCULAR STIMULUS DETAILS:", stimulus_details.MonocularStimulusDetails())
 
         self.load_params(params_path)
         self.format_window()
@@ -455,6 +455,9 @@ class StimulusSequencing(ShowBase):
         return translate.compose(rotate.compose(scale.compose(center_shift)))
 
     def set_transforms(self):
+        print("MONOCULAR STIMULUS DETAILS:", stimulus_details.MonocularStimulusDetails())
+
+
         match self.current_stimulus:
             case stimulus_details.MonocularStimulusDetails():
                 self.card.setTexRotate(

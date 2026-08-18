@@ -23,6 +23,7 @@ if __name__ == "__main__":
             print(ui)
             if ui.startswith("{"):
                 ui = ast.literal_eval(ui)
+            
 
             improv_protocol_pub.socket.send_string("improv_details")
             improv_protocol_pub.socket.send_pyobj(ui)

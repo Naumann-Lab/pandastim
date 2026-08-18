@@ -14,6 +14,7 @@ import sys
 import zmq
 import cv2
 import time
+import pandas as pd
 
 import threading as tr
 import numpy as np
@@ -123,6 +124,8 @@ class BaseProtocol(DirectObject.DirectObject):
 
         topic = self.improv_protocol_sub.socket.recv_string()
         message = self.improv_protocol_sub.socket.recv_pyobj()
+
+        print(f"STIM AUDIENCE RECIECVED {message}")
         if message == "END_EXPERIMENT":
             self.end_experiment()
             return 0
@@ -444,13 +447,19 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
         """
         topic = self.improv_protocol_sub.socket.recv_string()
         message = self.improv_protocol_sub.socket.recv_pyobj()
+
+        
+        
         if message == "END_EXPERIMENT":
             self.end_experiment()
             return 0
+
         
-        if self.current_stim != None:
+        if self.current_stim["stim_name"]!= None:
             self.stim_buffer.append(message)
         else:
+            print("FROM STIM AUDIENCE:", message)
+            print("OTHER STIM AUD CHECKS. 1:", message["stim_name"],)
             self.stim_suggestion(message)
 
 
@@ -469,10 +478,11 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
         # IF YOU MAKE IT TO HERE YOUR SHOWING STIMULI #
         if not self.stimulating:
             if len(self.stim_buffer) > 0:
+                print("USING BUFFER:", self.stim_buffer[0])
                 self.stim_suggestion(self.stim_buffer[0])
                 self.stim_buffer = self.stim_buffer[1:]
 
-        if self.stimulating and time.time() - self.stim_start < self.current_stim.duration:
+        if self.stimulating and time.time() - self.stim_start < self.current_stim["duration"]:
             self.tlmot = self.current_stim["taillock_on_motion"]
             self.tlstat = self.current_stim["taillock_stationary"]
 
@@ -482,9 +492,10 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
             elif time.time() - self.stim_start >= self.current_stim["stationary_time"]:
                 if self.tlmot:
                     self.closed_loop_stim_update()
-        elif self.stimulating and time.time() - self.stim_start >= self.current_stim.duration:
+        elif self.stimulating and time.time() - self.stim_start >= self.current_stim["duration"]:
             self.stimulating = False
             self.current_stim = None
+
 
 
 
@@ -496,6 +507,7 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
         self.current_stim_id += 1
         self.protocol_buddy_pub.socket.send_string('stimulus')
         self.protocol_buddy_pub.socket.send_pyobj(self.current_stim)
+        print("PROTOCOL JUST SENT:", self.current_stim)
         self.closed_loop_stim_update()
         self.last_message = 'some_stimmin'
         self.stimulating = True

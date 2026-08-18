@@ -81,7 +81,6 @@ class StimulusBuddy(DirectObject.DirectObject):
         self.lastReturnedStim = None
 
         self.receipts = receipts
-        self.queue = []
 
         #if pstim_comms:
         #    self.subscriber = utils.Subscriber(**pstim_comms)
@@ -96,9 +95,6 @@ class StimulusBuddy(DirectObject.DirectObject):
                 buddy -> protocol publisher socket message.  TRUE if paused.
             
         """
-        if pause_status and not self._pauseStatus:
-            self.queue = [self.lastReturnedStim] + self.queue
-            print("tried to add to queue")
         self._pauseStatus = pause_status
 
     def position(self, newposition):
@@ -192,7 +188,6 @@ class StimulusBuddy(DirectObject.DirectObject):
                                 texture=input_texture, **data["stimulus"]
                             )
 
-                        self.queue.append(input_stimulus)
                         if self.receipts:
                             self.output(
                                 f"pstimReceipts: queueAddition: {input_stimulus.return_dict()}"
@@ -297,12 +292,12 @@ class StytraBuddy(StimulusBuddy):
                                 x_offset=cali_params['x_off'], y_offset=cali_params['y_off'])
                         input_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'calibration',
                             texture=texture, velocity=0., angle=0)
-                        self.append_queue(input_stimulus)
+
                     elif not data:#if data is False (clicked the botton again), turn off the calibration signal and add in blank
-                        blank_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'pet turtle',
+                        data = stimulus_details.MonocularStimulusDetails(stim_name = 'pet turtle',
                                                                                    texture = textures.BlankTex(),
                                                                                    velocity=0., angle=0)
-                        self.append_queue(blank_stimulus)#called it pet turtle because turtles are like rocks
+
                 case "centering":
                     self.set_centering(data) #start centering
                 case "stimulus":
@@ -311,12 +306,12 @@ class StytraBuddy(StimulusBuddy):
                                                            dark_value=self.default_params['dark_value'],
                                                            frequency = self.default_params['frequency'],
                                                            texture_size=self.default_params['window_size'])
-                    self.append_queue(data)
+
                 case "clickstim":
-                    center_stimulus = stimulus_details.MonocularStimulusDetails(
+                    data = stimulus_details.MonocularStimulusDetails(
                         stim_name='centerclick',
                         texture=textures.CircleGrayTex(circle_radius=50,texture_size=self.default_params['window_size']))
-                    self.append_queue(center_stimulus)
+
                 case "stimulus_update":
                     self.set_updating(data)
                 case _:
@@ -386,36 +381,34 @@ class BrukerBuddy(StimulusBuddy):
                                 x_offset=cali_params['x_off'], y_offset=cali_params['y_off'])
                         input_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'calibration',
                             texture=texture, velocity=0., angle=0, angular_velocity = 0.)
-                        self.append_queue(input_stimulus)
+                        
                     elif not data:#if data is False (clicked the botton again), turn off the calibration signal and add in blank
                         blank_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'pet turtle',
                                                                                    texture = textures.BlankTex(),
                                                                                    velocity=0., angle=0,
                                                                                    angular_velocity = 0.)
-                        self.append_queue(blank_stimulus)#called it pet turtle because turtles are like rocks
+
                 case "stimulus":
                     #T^T DO SMYTHING ELSE WITH STIM HERE
-                    print(data)
 
-                    if data.stim_name == 'pause':
+                    if data["stim_name"] == 'pause':
                         self.buddy_protocol_pub.socket.send_string('pause_status')
                         self.buddy_protocol_pub.socket.send_pyobj('pause')
 
-                    elif data.stim_name == "idle":
+                    elif data["stim_name"] == "idle":
                         blank_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'pet turtle',
                                                                                     texture = textures.BlankTex(),
                                                                                     velocity=0., angle=0,
                                                                                     angular_velocity = 0.)
 
                     else:
-
                         data = stimulus_details.legacy2current_singlestim(data,
                                                         light_value = self.default_params['light_value'],
                                                         dark_value=self.default_params['dark_value'],
                                                         frequency = self.default_params['frequency'],
                                                         texture_size=self.default_params['window_size'])
 
-                        self.append_queue(data)
+
                 case "stimulus_update":
                     self.set_updating(data)
                 case _:
