@@ -597,3 +597,11 @@ class Publisher:
     def kill(self):
         self.socket.close()
         self.context.term()
+
+class AttrDict(dict):
+    def __getattr__(self, attr):
+        return self[attr]
+    def __setattr__(self, attr, value):
+        self[attr] = value
+
+        

@@ -15,6 +15,7 @@ import zmq
 import cv2
 import time
 import pandas as pd
+import ast
 
 import threading as tr
 import numpy as np
@@ -459,7 +460,7 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
             self.stim_buffer.append(message)
         else:
             print("FROM STIM AUDIENCE:", message)
-            print("OTHER STIM AUD CHECKS. 1:", message["stim_name"],)
+            print("OTHER STIM AUD CHECKS. 1:", type(message), message)
             self.stim_suggestion(message)
 
 
@@ -467,6 +468,7 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
     def stim_sequencer(self):
         # This is called every time new data arrives
         data = self.fish_data 
+        # print("DATA FROM STIMSEQ:", data, type(data))
         if len(data[0]) > 2:
             data = data[1:]
         data = np.array(data)

@@ -20,9 +20,10 @@ if __name__ == "__main__":
         while running:
 
             ui = main()
-            print(ui)
-            if ui.startswith("{"):
+
+            if "{" in ui and "}" in ui :
                 ui = ast.literal_eval(ui)
+                print(ui)
             
 
             improv_protocol_pub.socket.send_string("improv_details")

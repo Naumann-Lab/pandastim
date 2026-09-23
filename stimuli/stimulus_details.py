@@ -372,6 +372,7 @@ def legacy2current_singlestim(
     dark_value = 0, light_value = 255):
     """for a single stimuli. legacy: dataframe format; current: stimulus_details format"""
     stimDict = dict(stim_df)
+    print("STIMDICT IN STIMDEET", stimDict)
     if type(stimDict['stim_type']) == list:  # masked
         stimulus = []
         for stim_i in range(len(stimDict['stim_type'])):
@@ -412,11 +413,15 @@ def legacy2current_singlestim(
                     "light_value": light_value, "dark_value": dark_value, "circle_center": stimDict['circle_center'],
                     "circle_radius": stimDict['circle_radius']}
         else:
+            
             texDict = {"texture_name": tex, "frequency": int(frequency), "texture_size": texture_size,
                     "light_value": light_value, "dark_value": dark_value}
+
         createdTexture = utils.createTexture(texDict)
         createdTextures = (createdTexture, createdTexture)
+
         if stimDict['stim_type'] == 'b':#hasattr(stimDict["angle"], "__iter__"):
+
             detail_dict = {
                     k: v
                     for k, v in stimDict.items()
@@ -427,6 +432,8 @@ def legacy2current_singlestim(
             detail_dict["stationary_time"] = (detail_dict["stationary_time"], detail_dict["stationary_time"])
             del detail_dict['texture']
             stimulus = BinocularStimulusDetails(texture=createdTextures, **detail_dict)
+
+
         elif stimDict['stim_type'] == 's':
             stimDict["velocity"] = float(stimDict["velocity"])
             stimDict["angular_velocity"] = float(stimDict["angular_velocity"])

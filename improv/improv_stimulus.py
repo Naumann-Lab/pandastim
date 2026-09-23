@@ -9,6 +9,7 @@ from datetime import datetime as dt
 import pandas as pd
 import logging
 import time
+import inspect
 from direct.gui.OnscreenText import OnscreenText  # for binocular stim
 from direct.showbase import ShowBaseGlobal
 from direct.showbase.ShowBase import ShowBase
@@ -43,9 +44,6 @@ class StimulusSequencing(ShowBase):
         self.buddy = buddy
         if self.buddy:
             self.taskMgr.add(self.buddy_task, "buddy")
-
-
-        print("MONOCULAR STIMULUS DETAILS:", stimulus_details.MonocularStimulusDetails())
 
         self.load_params(params_path)
         self.format_window()
@@ -1097,6 +1095,36 @@ class BrukerStimulus(SequencingWithPause):
     def clear_cards(self):
         super().clear_cards()
 
+    # def pass_to_stimdeets(self):
+    #     match self.next_stimulus["stim_type"]:
+    #         case "b": #binoc
+    #             detail_dict = {
+    #                             k: v
+    #                             for k, v in self.next_stimulus.items()
+    #                             if k in list(inspect.signature(stimulus_details.BinocularStimulusDetails).parameters)
+    #                         }
+    #             self.next_stimulus = stimulus_details.BinocularStimulusDetails(**detail_dict)
+    #         case "s":
+    #             detail_dict = {
+    #                             k: v
+    #                             for k, v in self.next_stimulus.items()
+    #                             if k in list(inspect.signature(stimulus_details.MonocularStimulusDetails).parameters)
+    #                         }
+    #             self.next_stimulus = stimulus_details.MonocularStimulusDetails(**detail_dict)
+    #         case "m":
+    #             detail_dict = {
+    #                             k: v
+    #                             for k, v in self.next_stimulus.items()
+    #                             if k in list(inspect.signature(stimulus_details.MaskedStimulusDetailsPack).parameters)
+    #                         }
+    #             self.next_stimulus = stimulus_details.MaskedStimulusDetailsPack(**detail_dict)
+    #         case _:
+    #             print(f"{self.next_stimulus['stim_type']} is an unknown stimulus type")
+
+        
+
+
+
     def buddy_task(self, buddytask):
         """talk to a stytrabuddy about what task the buddy should do"""
         self.buddy.pauseStatus(self.paused)
@@ -1116,7 +1144,7 @@ class BrukerStimulus(SequencingWithPause):
                 or isinstance(self.next_stimulus, stimulus_details.BinocularStimulusDetails)\
                 or isinstance(self.next_stimulus, stimulus_details.MaskedStimulusDetailsPack):#handles input of stimulus object
                 self.clear_cards()
-                self.current_stimulus = self.buddy._stim
+                self.current_stimulus = self.buddy._stimulus
                 self.next_stimulus = None
                 self.set_stimulus()
             else:
@@ -1362,6 +1390,9 @@ class TailLockedStimulus(BrukerStimulus):
         return move_binocular_task.cont
 
     def translate_cards_live(self):
+        print("MADE IT TO TRANSLATE CARDS:", self.current_stimulus)
+        print("binoc", stimulus_details.BinocularStimulusDetails())
+
         match self.current_stimulus:
             case stimulus_details.MonocularStimulusDetails():
 

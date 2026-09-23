@@ -306,6 +306,7 @@ class StytraBuddy(StimulusBuddy):
                                                            dark_value=self.default_params['dark_value'],
                                                            frequency = self.default_params['frequency'],
                                                            texture_size=self.default_params['window_size'])
+                    print("FULLY PASSED LEGACY")
 
                 case "clickstim":
                     data = stimulus_details.MonocularStimulusDetails(
@@ -338,11 +339,19 @@ class BrukerBuddy(StimulusBuddy):
         self.updating_info = None
         for thread in self.stytraThreadList:
             thread.start()
+    
+    def request_stimulus(self):
+
+        if self._pauseStatus:
+            return None
+        else:
+            return self._stimulus #T^T
 
     def set_updating(self, updating_info):
         """change updating status to True so the stimulus will start updating, and also pass the updating info"""
         self.updating = True
         self.updating_info = updating_info
+
 
     def request_updating(self):
         """Let the stimulus to request the current updating status"""
@@ -368,6 +377,7 @@ class BrukerBuddy(StimulusBuddy):
         while self._running:
             topic = self.protocol_buddy_sub.socket.recv_string()
             data = self.protocol_buddy_sub.socket.recv_pyobj()
+        
             match topic:
                 case "calibration_stimulus":#when receiving calibration stimulus
                     if data:#if data is True, make calibration signal the first stimulus
@@ -402,11 +412,15 @@ class BrukerBuddy(StimulusBuddy):
                                                                                     angular_velocity = 0.)
 
                     else:
+                        print(f"BUDDY RECIEVED: \nTopic: {(topic, type(topic))}\nMessage: {(data, type(data))}")
+
                         data = stimulus_details.legacy2current_singlestim(data,
                                                         light_value = self.default_params['light_value'],
                                                         dark_value=self.default_params['dark_value'],
                                                         frequency = self.default_params['frequency'],
                                                         texture_size=self.default_params['window_size'])
+                        self._stimulus = data
+
 
 
                 case "stimulus_update":
