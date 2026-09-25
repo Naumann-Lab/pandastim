@@ -481,9 +481,9 @@ def stytra_container(ports, camera_rot=0, roi=None, savedir=None,):
 
     app = QApplication([])
     app.setStyleSheet(qdarkstyle.load_stylesheet_pyqt5())
-    protocol = TLStytraDummy()
+    protocol = StytraDummy()
     exp = ExternalTrackingExperiment(protocol=protocol, app=app, dir_save=savedir,
-                                     tracking=dict(method='tail', embedded=True, estimator="vigor"),#IF RUNNING TAIL TRACKING, NEED TO SWAP STYTRA X AND Y IN THEIR TAIL TRACKING PIPELINE!!
+                                     tracking=dict(method='fish', embedded=True),#IF RUNNING TAIL TRACKING, NEED TO SWAP STYTRA X AND Y IN THEIR TAIL TRACKING PIPELINE!!
                                      camera=dict(type='spinnaker', min_framerate=155, rotation=camera_rot, roi=roi),
                                      ports=ports
                                      )
