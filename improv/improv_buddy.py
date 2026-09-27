@@ -306,7 +306,7 @@ class StytraBuddy(StimulusBuddy):
                                                            dark_value=self.default_params['dark_value'],
                                                            frequency = self.default_params['frequency'],
                                                            texture_size=self.default_params['window_size'])
-                    print("FULLY PASSED LEGACY")
+                    
 
                 case "clickstim":
                     data = stimulus_details.MonocularStimulusDetails(
@@ -419,6 +419,8 @@ class BrukerBuddy(StimulusBuddy):
                                                         dark_value=self.default_params['dark_value'],
                                                         frequency = self.default_params['frequency'],
                                                         texture_size=self.default_params['window_size'])
+
+                        print("LEGACY PASSED:", data)
                         self._stimulus = data
 
 

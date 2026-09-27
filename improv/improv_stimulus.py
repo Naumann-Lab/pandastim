@@ -453,8 +453,6 @@ class StimulusSequencing(ShowBase):
         return translate.compose(rotate.compose(scale.compose(center_shift)))
 
     def set_transforms(self):
-        print("MONOCULAR STIMULUS DETAILS:", stimulus_details.MonocularStimulusDetails())
-
 
         match self.current_stimulus:
             case stimulus_details.MonocularStimulusDetails():
@@ -1129,14 +1127,12 @@ class BrukerStimulus(SequencingWithPause):
         """talk to a stytrabuddy about what task the buddy should do"""
         self.buddy.pauseStatus(self.paused)
         self.buddy.position(self.new_position)
-        self.fresh_stim = self.buddy.stimulus()
-        # print(self.fresh_stim)
-
 
         #T^T : I think this is like THE core thing that needs to change
         self.updating, self.updating_info = self.buddy.request_updating()
-        self.next_stimulus = self.buddy.request_stimulus()#request next stimulus from buddy
 
+        self.next_stimulus = self.buddy.request_stimulus()#request next stimulus from buddy
+        print("BUDDY SAYS:", self.next_stimulus, self.buddy._stimulus)
 
         #T^T DITTO
         if self.next_stimulus is not None:#if there is a stimulus change
@@ -1145,12 +1141,18 @@ class BrukerStimulus(SequencingWithPause):
                 or isinstance(self.next_stimulus, stimulus_details.MaskedStimulusDetailsPack):#handles input of stimulus object
                 self.clear_cards()
                 self.current_stimulus = self.buddy._stimulus
-                self.next_stimulus = None
+                print("UPDATE STIMULUS Says:", self.current_stimulus)
+                # self.next_stimulus = None
                 self.set_stimulus()
+                self.update_stimulus()
             else:
                 print('stim input to stimulus.py has to be an object belong to stimulus_details class')
+
+
         elif self.updating:
             self.update_stimulus()
+
+    
         self.buddy.broadcaster()#slight delay of one round in reporting new stimulus because we have to wait till buddy is updated faster
 
         return buddytask.cont
@@ -1214,6 +1216,7 @@ class TailLockedStimulus(BrukerStimulus):
         return move_monocular_task.cont
 
     def set_binocular(self):
+        print("HIT SET BINOC")
         tex_1_size = self.current_stimulus.texture[0].texture_size
         tex_2_size = self.current_stimulus.texture[1].texture_size
         tex_1 = self.current_stimulus.texture[0].texture
@@ -1330,6 +1333,7 @@ class TailLockedStimulus(BrukerStimulus):
 
     def move_binocular(self, move_binocular_task):
         ### LEFT SIDE ###
+        print("MADE IT TO MOVE BINOC")
         if move_binocular_task.time <= self.current_stimulus.stationary_time[0]:
             step_left = 0
         elif move_binocular_task.time >= self.current_stimulus.duration[0] != -1:
@@ -1481,6 +1485,7 @@ class TailLockedStimulus(BrukerStimulus):
         if len(self.updating_info) == 2:
             self.turning = self.updating_info[0]
             self.forward_swimming = self.updating_info[1]
+            print("UPDATE STIM:", self.current_stimulus)
             self.translate_cards_live()
             self.set_transforms()
         else:

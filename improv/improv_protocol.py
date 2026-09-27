@@ -449,8 +449,6 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
         topic = self.improv_protocol_sub.socket.recv_string()
         message = self.improv_protocol_sub.socket.recv_pyobj()
 
-        
-        
         if message == "END_EXPERIMENT":
             self.end_experiment()
             return 0
@@ -459,8 +457,6 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
         if self.current_stim["stim_name"]!= None:
             self.stim_buffer.append(message)
         else:
-            print("FROM STIM AUDIENCE:", message)
-            print("OTHER STIM AUD CHECKS. 1:", type(message), message)
             self.stim_suggestion(message)
 
 
@@ -495,8 +491,11 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
                 if self.tlmot:
                     self.closed_loop_stim_update()
         elif self.stimulating and time.time() - self.stim_start >= self.current_stim["duration"]:
+            print("STIMULUS DURATION COMPLETE")
             self.stimulating = False
-            self.current_stim = None
+            self.current_stim = {"stim_name":"idle"}
+            self.protocol_buddy_pub.socket.send_string('stimulus')
+            self.protocol_buddy_pub.socket.send_pyobj(self.current_stim)
 
 
 
