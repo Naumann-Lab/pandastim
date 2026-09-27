@@ -7,7 +7,6 @@ import qdarkstyle
 import sys
 
 import numpy as np
-import pyqtgraph as pg
 
 from pathlib import Path
 
@@ -329,7 +328,7 @@ class ExternalCameraDisplay_eyefish(CameraViewEyeFish):
                 )
                 ys, xs = tail_points(retrieved_data, tail_len, n_points_tail)
                 self.lines_fish.setData(y=xs, x=ys)
-        except ValueError as e:
+        except ValueError or ZeroDivisionError:
             pass
 
 
@@ -563,7 +562,7 @@ def stytra_container(ports, camera_rot=0, roi=None, savedir=None,):
     protocol = StytraDummy()
     exp = ExternalTrackingExperiment(protocol=protocol, app=app, dir_save=savedir,
                                      tracking=dict(method='fish_eye', embedded=True, estimator="position"),
-                                     camera=dict(type='svs', min_framerate=155, rotation=camera_rot, roi=roi),
+                                     camera=dict(type='spinnaker', min_framerate=120, rotation=camera_rot, roi=roi),
                                      ports=ports
                                      )
 

@@ -302,6 +302,8 @@ class StytraBuddy(StimulusBuddy):
                 case "centering":
                     self.set_centering(data) #start centering
                 case "stimulus":
+                    print("STIMDEETS (in buddy):", data)
+
                     data = stimulus_details.legacy2current_singlestim(data,
                                                            light_value = self.default_params['light_value'],
                                                            dark_value=self.default_params['dark_value'],

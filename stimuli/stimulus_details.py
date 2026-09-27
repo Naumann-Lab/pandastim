@@ -400,9 +400,14 @@ def legacy2current_singlestim(
         except:
             pass
         # create real texture
-        texDict = {"texture_name": tex, "frequency": int(frequency), "texture_size": texture_size,
-                   "light_value": light_value, "dark_value": dark_value, "circle_center": stimDict['circle_center'],
-                   "circle_radius": stimDict['circle_radius']}
+        if 'circle_center' in stimDict.keys():
+            texDict = {"texture_name": tex, "frequency": int(frequency), "texture_size": texture_size,
+                    "light_value": light_value, "dark_value": dark_value, "circle_center": stimDict['circle_center'],
+                    "circle_radius": stimDict['circle_radius']}
+        else:
+            texDict = {"texture_name": tex, "frequency": int(frequency), "texture_size": texture_size,
+                                "light_value": light_value, "dark_value": dark_value
+                        }
         createdTexture = utils.createTexture(texDict)
         createdTextures = (createdTexture, createdTexture)
         if stimDict['stim_type'] == 'b':#hasattr(stimDict["angle"], "__iter__"):
