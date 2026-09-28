@@ -27,6 +27,13 @@ def wrapper(protocol, stimulus_dataframe_path, ports, params, parameter_path):
 
     import pandas as pd
     stimulus_dataframe = pd.read_hdf(stimulus_dataframe_path)
+
+    
+    stimulus_dataframe["strip_width"] = stimulus_dataframe["strip_width"].astype(object)
+    print(type(stimulus_dataframe["strip_width"].iloc[0]))
+
+    print("STIMDAT", stimulus_dataframe)
+
     rad_stack = utils.create_radial_sin(texture_size=1024)
     stytraBuddy = StytraBuddy(comms = ports,
                              params_path =parameter_path,
