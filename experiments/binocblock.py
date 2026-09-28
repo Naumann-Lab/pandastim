@@ -5,7 +5,8 @@ from pandastim.behavior.Protocol import  ClosedLoopProtocol, CenterClickTestingP
 from pandastim.behavior.Tracking import stytra_container
 from pandastim.buddies.stimulus_buddies import StimulusBuddy, StytraBuddy
 from pandastim import utils
-
+import numpy as np
+from numpy import random
 import multiprocessing as mp
 
 import sys
@@ -31,6 +32,11 @@ def wrapper(protocol, stimulus_dataframe_path, ports, params, parameter_path):
     
     stimulus_dataframe["strip_width"] = stimulus_dataframe["strip_width"].astype(object)
     print(type(stimulus_dataframe["strip_width"].iloc[0]))
+
+    iters = 10
+    trials = [j for i in [random.choice(stimulus_dataframe.index, size=len(stimulus_dataframe.index), replace=False) for i in range(iters)] for j in i]
+    new_data = stimulus_dataframe.loc[trials].drop(columns=["index"])
+    stimulus_dataframe = new_data.reset_index().drop(columns=["index"])
 
     print("STIMDAT", stimulus_dataframe)
 
