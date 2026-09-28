@@ -1131,17 +1131,16 @@ class BrukerStimulus(SequencingWithPause):
         #T^T : I think this is like THE core thing that needs to change
         self.updating, self.updating_info = self.buddy.request_updating()
 
-        self.next_stimulus = self.buddy.request_stimulus()#request next stimulus from buddy
-        print("BUDDY SAYS:", self.next_stimulus, self.buddy._stimulus)
+        # # self.next_stimulus = self.buddy.request_stimulus()#request next stimulus from buddy
+        # print("BUDDY SAYS:", self.next_stimulus, self.buddy._stimulus)
 
         #T^T DITTO
-        if self.next_stimulus is not None:#if there is a stimulus change
-            if isinstance(self.next_stimulus, stimulus_details.MonocularStimulusDetails)\
-                or isinstance(self.next_stimulus, stimulus_details.BinocularStimulusDetails)\
-                or isinstance(self.next_stimulus, stimulus_details.MaskedStimulusDetailsPack):#handles input of stimulus object
+        if self.buddy._stimulus is not None:#if there is a stimulus change
+            if isinstance(self.buddy._stimulus, stimulus_details.MonocularStimulusDetails)\
+                or isinstance(self.buddy._stimulus, stimulus_details.BinocularStimulusDetails)\
+                or isinstance(self.buddy._stimulus, stimulus_details.MaskedStimulusDetailsPack):#handles input of stimulus object
                 self.clear_cards()
                 self.current_stimulus = self.buddy._stimulus
-                print("UPDATE STIMULUS Says:", self.current_stimulus)
                 # self.next_stimulus = None
                 self.set_stimulus()
                 self.update_stimulus()
@@ -1216,7 +1215,7 @@ class TailLockedStimulus(BrukerStimulus):
         return move_monocular_task.cont
 
     def set_binocular(self):
-        print("HIT SET BINOC")
+
         tex_1_size = self.current_stimulus.texture[0].texture_size
         tex_2_size = self.current_stimulus.texture[1].texture_size
         tex_1 = self.current_stimulus.texture[0].texture
@@ -1333,7 +1332,7 @@ class TailLockedStimulus(BrukerStimulus):
 
     def move_binocular(self, move_binocular_task):
         ### LEFT SIDE ###
-        print("MADE IT TO MOVE BINOC")
+
         if move_binocular_task.time <= self.current_stimulus.stationary_time[0]:
             step_left = 0
         elif move_binocular_task.time >= self.current_stimulus.duration[0] != -1:
@@ -1394,8 +1393,8 @@ class TailLockedStimulus(BrukerStimulus):
         return move_binocular_task.cont
 
     def translate_cards_live(self):
-        print("MADE IT TO TRANSLATE CARDS:", self.current_stimulus)
-        print("binoc", stimulus_details.BinocularStimulusDetails())
+        # print("MADE IT TO TRANSLATE CARDS:", self.current_stimulus)
+
 
         match self.current_stimulus:
             case stimulus_details.MonocularStimulusDetails():
@@ -1481,11 +1480,12 @@ class TailLockedStimulus(BrukerStimulus):
                 )
 
     def update_stimulus(self):
+        # print("@ time of update stim got updinf", self.updating_info, type(self.updating_info))
 
         if len(self.updating_info) == 2:
             self.turning = self.updating_info[0]
             self.forward_swimming = self.updating_info[1]
-            print("UPDATE STIM:", self.current_stimulus)
+            # print("UPDATE STIM:", self.current_stimulus)
             self.translate_cards_live()
             self.set_transforms()
         else:

@@ -122,19 +122,19 @@ class BaseProtocol(DirectObject.DirectObject):
         """
         Thread to constantly listen to improv and update when needed
         """
+        while self.experiment_running:
+            topic = self.improv_protocol_sub.socket.recv_string()
+            message = self.improv_protocol_sub.socket.recv_pyobj()
 
-        topic = self.improv_protocol_sub.socket.recv_string()
-        message = self.improv_protocol_sub.socket.recv_pyobj()
-
-        print(f"STIM AUDIENCE RECIECVED {message}")
-        if message == "END_EXPERIMENT":
-            self.end_experiment()
-            return 0
-        
-        if self.current_stim != None:
-            self.stim_buffer.append(message)
-        else:
-            self.current_stim = message
+            print(f"STIM AUDIENCE RECIECVED {message}")
+            if message == "END_EXPERIMENT":
+                self.end_experiment()
+                return 0
+            
+            if self.current_stim != None:
+                self.stim_buffer.append(message)
+            else:
+                self.current_stim = message
 
 
 
@@ -445,19 +445,23 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
     def stim_audience(self):
         """
         Thread to constantly listen to improv and update when needed
+
         """
-        topic = self.improv_protocol_sub.socket.recv_string()
-        message = self.improv_protocol_sub.socket.recv_pyobj()
+        while self.experiment_running:
+            topic = self.improv_protocol_sub.socket.recv_string()
+            message = self.improv_protocol_sub.socket.recv_pyobj()
 
-        if message == "END_EXPERIMENT":
-            self.end_experiment()
-            return 0
+            print("AUDIENCE RECIEVED:", message)
 
-        
-        if self.current_stim["stim_name"]!= None:
-            self.stim_buffer.append(message)
-        else:
-            self.stim_suggestion(message)
+            if message == "END_EXPERIMENT":
+                self.end_experiment()
+                return 0
+
+            
+            if (self.current_stim["stim_name"]!= None) or (self.current_stim["stim_name"]!= "idle"):
+                self.stim_buffer.append(message)
+            else:
+                self.stim_suggestion(message)
 
 
 
@@ -508,7 +512,6 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
         self.current_stim_id += 1
         self.protocol_buddy_pub.socket.send_string('stimulus')
         self.protocol_buddy_pub.socket.send_pyobj(self.current_stim)
-        print("PROTOCOL JUST SENT:", self.current_stim)
         self.closed_loop_stim_update()
         self.last_message = 'some_stimmin'
         self.stimulating = True

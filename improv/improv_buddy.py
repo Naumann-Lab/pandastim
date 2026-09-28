@@ -102,12 +102,14 @@ class StimulusBuddy(DirectObject.DirectObject):
         Resets current _position attribute to value provided by newposition
 
         """
-        if newposition != 0 and newposition != self._position:
-            self._position = newposition
-            self._motion = True
-            # print(newposition)
-        else:
-            self._motion = False
+
+        if type(newposition) != tuple:
+            if newposition != 0 and newposition != self._position:
+                self._position = newposition
+                self._motion = True
+                # print(newposition)
+            else:
+                self._motion = False
 
     def stimulus(self):#, newstimulus):
         return self._stimulus
@@ -377,6 +379,8 @@ class BrukerBuddy(StimulusBuddy):
         while self._running:
             topic = self.protocol_buddy_sub.socket.recv_string()
             data = self.protocol_buddy_sub.socket.recv_pyobj()
+
+            # print("MSG BUDDY:", topic, data)
         
             match topic:
                 case "calibration_stimulus":#when receiving calibration stimulus
@@ -406,10 +410,13 @@ class BrukerBuddy(StimulusBuddy):
                         self.buddy_protocol_pub.socket.send_pyobj('pause')
 
                     elif data["stim_name"] == "idle":
+                        print("idle checked")
+
                         blank_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'pet turtle',
                                                                                     texture = textures.BlankTex(),
                                                                                     velocity=0., angle=0,
                                                                                     angular_velocity = 0.)
+                        self._stimulus = blank_stimulus
 
                     else:
                         print(f"BUDDY RECIEVED: \nTopic: {(topic, type(topic))}\nMessage: {(data, type(data))}")
@@ -420,7 +427,6 @@ class BrukerBuddy(StimulusBuddy):
                                                         frequency = self.default_params['frequency'],
                                                         texture_size=self.default_params['window_size'])
 
-                        print("LEGACY PASSED:", data)
                         self._stimulus = data
 
 
