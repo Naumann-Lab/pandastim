@@ -8,7 +8,7 @@ from pandastim import utils
 import numpy as np
 from numpy import random
 import multiprocessing as mp
-
+import os
 import sys
 
 from pathlib import Path
@@ -39,6 +39,10 @@ def wrapper(protocol, stimulus_dataframe_path, ports, params, parameter_path):
     stimulus_dataframe = new_data.reset_index().drop(columns=["index"])
 
     print("STIMDAT", stimulus_dataframe)
+
+    pd.to_csv(os.path.join(params['save_path'],"stimulus.csv"))
+
+    print("stimulus csv saved")
 
     rad_stack = utils.create_radial_sin(texture_size=1024)
     stytraBuddy = StytraBuddy(comms = ports,
