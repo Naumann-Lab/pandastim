@@ -40,7 +40,7 @@ def wrapper(protocol, stimulus_dataframe_path, ports, params, parameter_path):
 
     print("STIMDAT", stimulus_dataframe)
 
-    pd.to_csv(os.path.join(params['save_path'],"stimulus.csv"))
+    stimulus_dataframe.to_csv(os.path.join(params['save_path'],"stimulus.csv"))
 
     print("stimulus csv saved")
 
