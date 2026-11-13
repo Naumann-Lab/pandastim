@@ -842,10 +842,10 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
             self.tlstat = self.current_stim["taillock_stationary"]
 
             if time.time() - self.stim_start < self.current_stim["stationary_time"]:
-                if self.tlstat:
+                if self.tlstat: #tail lock stationary
                     self.closed_loop_stim_update()
             elif time.time() - self.stim_start >= self.current_stim["stationary_time"]:
-                if self.tlmot:
+                if self.tlmot: #tail lock motion
                     self.closed_loop_stim_update()
         elif self.stimulating and time.time() - self.stim_start >= self.current_stim.duration:
             self.stimulating = False
