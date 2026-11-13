@@ -126,7 +126,6 @@ class BaseProtocol(DirectObject.DirectObject):
             topic = self.improv_protocol_sub.socket.recv_string()
             message = self.improv_protocol_sub.socket.recv_pyobj()
 
-            print(f"STIM AUDIENCE RECIECVED {message}")
             if message == "END_EXPERIMENT":
                 self.end_experiment()
                 return 0
@@ -232,6 +231,63 @@ class BaseProtocol(DirectObject.DirectObject):
     def stim_sequencer(self):
         pass
 
+class OpenLoopProtocol(BaseProtocol):
+    def __init__(self, *args, **kwargs):
+        self.current_stim_id = 0
+        super().__init__(*args, **kwargs)
+
+    def run_experiment(self):
+        super().run_experiment()
+
+        curr_t = time.time()
+        self.timing_comm.socket.send_string('time', zmq.SNDMORE)
+        #self.timing_comm.socket.send_pyobj([curr_t - self.init_time + 3 + np.sum(self.stimuli.duration.values), curr_t - self.init_time])
+
+        #self.stim_sequencer()
+
+    def stim_sequencer(self):
+        if self.current_stim_id > len(self.stimuli) - 1:
+            self.experiment_finished = True
+            self.end_experiment()
+            # do some finishing here
+
+    
+    def stim_audience(self):
+        """
+        Thread to constantly listen to improv and update when needed
+
+        """
+        while self.experiment_running:
+            topic = self.improv_protocol_sub.socket.recv_string()
+            message = self.improv_protocol_sub.socket.recv_pyobj()
+
+            print("AUDIENCE RECIEVED:", message)
+
+            if message == "END_EXPERIMENT":
+                self.end_experiment()
+                return 0
+
+            
+            if (self.current_stim["stim_name"]!= None) or (self.current_stim["stim_name"]!= "idle"):
+                self.stim_buffer.append(message)
+            else:
+                self.stim_suggestion(message)
+
+
+
+        stimulus = self.stimuli.loc[self.current_stim_id]
+        stim = [self.current_stim_id, stimulus]
+        messenger.send('stimulus', [stim])
+        wait_fxn = tr.Thread(target=self.time_delay, args=(stimulus.duration,))
+        wait_fxn.start()
+        wait_fxn.join()
+
+    def time_delay(self, duration):
+        init_time = time.time()
+        while time.time() - init_time <= duration - 0.05:
+            pass
+        self.current_stim_id += 1
+        self.stim_sequencer()
 
 
 class BrukerClosedLoopProtocol(BaseProtocol):
@@ -434,8 +490,9 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
             #this is also where you would filter out jitter
             # x, y = self.position_transformer(self.centered_pt[1], self.centered_pt[0])
             self.curr_stim_gain = self.current_stim["gain"]#.loc[self.current_stim]
+            self.curr_stim_ANG_gain = self.current_stim["angular_gain"]
             #theta = utils.angle_mean(utils.reduce_to_pi(self.centered_theta))  #use this for fish lock I think
-            updated_tailpos = self._tailpos * self.curr_stim_gain
+            updated_tailpos = self._tailpos * self.curr_stim_ANG_gain
             updated_velocity = self._velocity * self.curr_stim_gain #might change this to be two different stims
             self.protocol_buddy_pub.socket.send_string('stimulus_update')
             self.protocol_buddy_pub.socket.send_pyobj([degrees(updated_tailpos), updated_velocity])

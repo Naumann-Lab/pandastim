@@ -37,9 +37,7 @@ class StimulusSequencing(ShowBase):
         super().__init__()
 
 
-        #T^T: basically what i need is to put a socket right here to talk w improv!
-        # add: print("Listening for Improv Connection") maybe not tho, maybe buddy does everything
-        
+
         # if we have a stimbuddy start a task running
         self.buddy = buddy
         if self.buddy:
@@ -113,7 +111,7 @@ class StimulusSequencing(ShowBase):
         return move_monocular_task.cont
 
     def set_binocular(self):
-
+       
         self.center_x = self.current_stimulus.position[0]
         self.center_y = self.current_stimulus.position[1]
 
@@ -228,6 +226,7 @@ class StimulusSequencing(ShowBase):
 
         # start the movement once everything is set up
         self.taskMgr.add(self.move_binocular, "move_binocular")
+        print("BINOC TASK ADDED")
 
     def move_binocular(self, move_binocular_task):
         ### LEFT SIDE ###
@@ -612,10 +611,36 @@ class SequencingWithPause(StimulusSequencing):
             self.set_stimulus()
 
     def buddy_task(self, buddytask):
+        """talk to a stytrabuddy about what task the buddy should do"""
         self.buddy.pauseStatus(self.paused)
-        self.buddy.position(self.new_position)
-        self.buddy.stimulus(self.current_stimulus)
-        self.buddy.broadcaster()
+        # self.buddy.position(self.new_position) #Shouldnt need this?
+
+        #T^T : I think this is like THE core thing that needs to change
+        # self.updating, self.updating_info = self.buddy.request_updating()
+
+        # # self.next_stimulus = self.buddy.request_stimulus()#request next stimulus from buddy
+        # print("BUDDY SAYS:", self.next_stimulus, self.buddy._stimulus)
+
+        #T^T DITTO
+        if self.buddy._stimulus is not None:#if there is a stimulus change
+            if isinstance(self.buddy._stimulus, stimulus_details.MonocularStimulusDetails)\
+                or isinstance(self.buddy._stimulus, stimulus_details.BinocularStimulusDetails)\
+                or isinstance(self.buddy._stimulus, stimulus_details.MaskedStimulusDetailsPack):#handles input of stimulus object
+                self.clear_cards()
+                self.current_stimulus = self.buddy._stimulus
+                # self.next_stimulus = None
+                self.set_stimulus()
+                # self.update_stimulus()
+            else:
+                print('stim input to stimulus.py has to be an object belong to stimulus_details class')
+
+
+        elif self.updating:
+            self.update_stimulus()
+
+    
+        self.buddy.broadcaster()#slight delay of one round in reporting new stimulus because we have to wait till buddy is updated faster
+
         return buddytask.cont
 
     
@@ -1093,31 +1118,7 @@ class BrukerStimulus(SequencingWithPause):
     def clear_cards(self):
         super().clear_cards()
 
-    # def pass_to_stimdeets(self):
-    #     match self.next_stimulus["stim_type"]:
-    #         case "b": #binoc
-    #             detail_dict = {
-    #                             k: v
-    #                             for k, v in self.next_stimulus.items()
-    #                             if k in list(inspect.signature(stimulus_details.BinocularStimulusDetails).parameters)
-    #                         }
-    #             self.next_stimulus = stimulus_details.BinocularStimulusDetails(**detail_dict)
-    #         case "s":
-    #             detail_dict = {
-    #                             k: v
-    #                             for k, v in self.next_stimulus.items()
-    #                             if k in list(inspect.signature(stimulus_details.MonocularStimulusDetails).parameters)
-    #                         }
-    #             self.next_stimulus = stimulus_details.MonocularStimulusDetails(**detail_dict)
-    #         case "m":
-    #             detail_dict = {
-    #                             k: v
-    #                             for k, v in self.next_stimulus.items()
-    #                             if k in list(inspect.signature(stimulus_details.MaskedStimulusDetailsPack).parameters)
-    #                         }
-    #             self.next_stimulus = stimulus_details.MaskedStimulusDetailsPack(**detail_dict)
-    #         case _:
-    #             print(f"{self.next_stimulus['stim_type']} is an unknown stimulus type")
+
 
         
 
@@ -1215,7 +1216,7 @@ class TailLockedStimulus(BrukerStimulus):
         return move_monocular_task.cont
 
     def set_binocular(self):
-
+        print("SET BINOC")
         tex_1_size = self.current_stimulus.texture[0].texture_size
         tex_2_size = self.current_stimulus.texture[1].texture_size
         tex_1 = self.current_stimulus.texture[0].texture
@@ -1329,10 +1330,11 @@ class TailLockedStimulus(BrukerStimulus):
         self.curr_pos_right = self.current_stimulus.position[0]
         self.curr_pos_left = self.current_stimulus.position[0]
         self.taskMgr.add(self.move_binocular, "move_binocular")
+        print("MOVE BINOC ADDED")
 
     def move_binocular(self, move_binocular_task):
         ### LEFT SIDE ###
-
+        print(move_binocular_task.time)
         if move_binocular_task.time <= self.current_stimulus.stationary_time[0]:
             step_left = 0
         elif move_binocular_task.time >= self.current_stimulus.duration[0] != -1:
@@ -1360,21 +1362,28 @@ class TailLockedStimulus(BrukerStimulus):
         ### RIGHT SIDE ###
         if move_binocular_task.time <= self.current_stimulus.stationary_time[1]:
             step_right = 0
+            print("D", self.current_stimulus.stationary_time[1], move_binocular_task.time)
         elif move_binocular_task.time >= self.current_stimulus.duration[1] != -1:
             if self.default_params["hold_onfinish"]:
                 step_right = 0
+                print("C", self.current_stimulus.duration[1])
             else:
                 self.right_card.detach_node()
                 new_position_right = None
+                print("B")
         elif (
             not np.isnan(self.current_stimulus.hold_after[1])
             and move_binocular_task.time >= self.current_stimulus.hold_after[1]
         ):
+            print("A")
             step_right = 0
         else:
+            print("STEPPING RIGHT")
             step_right = ShowBaseGlobal.globalClock.getDt() * self.current_stimulus.velocity[1]
 
         new_position_right = self.curr_pos_right + step_right
+        
+
         self.right_card.setTexPos(
             self.right_texture_stage,
             new_position_right,
@@ -1393,8 +1402,6 @@ class TailLockedStimulus(BrukerStimulus):
         return move_binocular_task.cont
 
     def translate_cards_live(self):
-        # print("MADE IT TO TRANSLATE CARDS:", self.current_stimulus)
-
 
         match self.current_stimulus:
             case stimulus_details.MonocularStimulusDetails():
@@ -1411,6 +1418,7 @@ class TailLockedStimulus(BrukerStimulus):
                 step_left  = (math.cos(self.curr_left_angle) * self.forward_swimming) * ShowBaseGlobal.globalClock.getDt()     
                 self.curr_pos_right += step_right
                 self.curr_pos_left += step_left
+                print("MOVING BINOC", self.current_stimulus.position, step_left, step_right)
                 self.right_card.setTexPos(
                     self.right_texture_stage,
                     self.curr_pos_right,
