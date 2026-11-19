@@ -616,7 +616,7 @@ class SequencingWithPause(StimulusSequencing):
         # self.buddy.position(self.new_position) #Shouldnt need this?
 
         #T^T : I think this is like THE core thing that needs to change
-        # self.updating, self.updating_info = self.buddy.request_updating()
+        # self.updating, self.updating_info = self.buddy.request_updating() #*>*
 
         # # self.next_stimulus = self.buddy.request_stimulus()#request next stimulus from buddy
         # print("BUDDY SAYS:", self.next_stimulus, self.buddy._stimulus)
@@ -1131,12 +1131,14 @@ class BrukerStimulus(SequencingWithPause):
 
         #T^T : I think this is like THE core thing that needs to change
         self.updating, self.updating_info = self.buddy.request_updating()
+        print("STIM RECIEVED FROM BUDDY:", self.updating, self.updating_info)
 
         # # self.next_stimulus = self.buddy.request_stimulus()#request next stimulus from buddy
         # print("BUDDY SAYS:", self.next_stimulus, self.buddy._stimulus)
 
         #T^T DITTO
         if self.buddy._stimulus is not None:#if there is a stimulus change
+            print("PRINTING BUDDY STIM:", self.buddy._stimulus)
             if isinstance(self.buddy._stimulus, stimulus_details.MonocularStimulusDetails)\
                 or isinstance(self.buddy._stimulus, stimulus_details.BinocularStimulusDetails)\
                 or isinstance(self.buddy._stimulus, stimulus_details.MaskedStimulusDetailsPack):#handles input of stimulus object
@@ -1144,7 +1146,8 @@ class BrukerStimulus(SequencingWithPause):
                 self.current_stimulus = self.buddy._stimulus
                 # self.next_stimulus = None
                 self.set_stimulus()
-                self.update_stimulus()
+                # self.update_stimulus()
+                self.buddy._stimulus = None
             else:
                 print('stim input to stimulus.py has to be an object belong to stimulus_details class')
 
@@ -1334,7 +1337,7 @@ class TailLockedStimulus(BrukerStimulus):
 
     def move_binocular(self, move_binocular_task):
         ### LEFT SIDE ###
-        print(move_binocular_task.time)
+        print("TASK_TIME:", move_binocular_task.time)
         if move_binocular_task.time <= self.current_stimulus.stationary_time[0]:
             step_left = 0
         elif move_binocular_task.time >= self.current_stimulus.duration[0] != -1:
@@ -1351,10 +1354,10 @@ class TailLockedStimulus(BrukerStimulus):
         else:
             step_left =  ShowBaseGlobal.globalClock.getDt() * self.current_stimulus.velocity[0]
 
-        new_position_left = self.curr_pos_left + step_left
+        self.curr_pos_left += step_left
         self.left_card.setTexPos(
             self.left_texture_stage,
-            new_position_left,
+            self.curr_pos_left,
             self.current_stimulus.position[1],
             0,
         )  # u, v, w
@@ -1362,36 +1365,32 @@ class TailLockedStimulus(BrukerStimulus):
         ### RIGHT SIDE ###
         if move_binocular_task.time <= self.current_stimulus.stationary_time[1]:
             step_right = 0
-            print("D", self.current_stimulus.stationary_time[1], move_binocular_task.time)
         elif move_binocular_task.time >= self.current_stimulus.duration[1] != -1:
             if self.default_params["hold_onfinish"]:
                 step_right = 0
-                print("C", self.current_stimulus.duration[1])
+
             else:
                 self.right_card.detach_node()
                 new_position_right = None
-                print("B")
         elif (
             not np.isnan(self.current_stimulus.hold_after[1])
             and move_binocular_task.time >= self.current_stimulus.hold_after[1]
         ):
-            print("A")
             step_right = 0
         else:
-            print("STEPPING RIGHT")
             step_right = ShowBaseGlobal.globalClock.getDt() * self.current_stimulus.velocity[1]
 
-        new_position_right = self.curr_pos_right + step_right
+        self.curr_pos_right += step_right
         
 
         self.right_card.setTexPos(
             self.right_texture_stage,
-            new_position_right,
+            self.curr_pos_right,
             self.current_stimulus.position[1],
             0,
         )  # u, v, w
 
-        self.new_position = new_position_left, new_position_right
+        # self.new_position = new_position_left, new_position_right
 
         if move_binocular_task.time >= max(
             self.current_stimulus.duration[0], self.current_stimulus.duration[1]
@@ -1498,20 +1497,3 @@ class TailLockedStimulus(BrukerStimulus):
             self.set_transforms()
         else:
             print(f"ERR: Recieved data is of length {len(self.updating_info)}.  It expected to be of length 2.")
-
-        #NOTE: might dip in to this if I do a fish-locked strip angle
-        # if self.current_stimulus is not None:
-        #     if len(self.updating_info) == 1:
-        #         # this is theta
-        #         self.angle_rotation = self.updating_info[0]
-        #         self.strip_angle = self.angle_rotation + self.rotation_offset
-        #         self.set_transforms()
-        #     elif len(self.updating_info) == 2:
-        #         # this is X, Y
-        #         self.center_x, self.center_y = self.updating_info
-        #         self.set_transforms()
-        #     elif len(self.updating_info) == 3:
-        #         # this is X, Y, Theta
-        #         self.center_x, self.center_y, self.angle_rotation = self.updating_info
-        #         self.strip_angle = self.angle_rotation + self.rotation_offset
-        #         self.set_transforms()

@@ -491,9 +491,10 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
             # x, y = self.position_transformer(self.centered_pt[1], self.centered_pt[0])
             self.curr_stim_gain = self.current_stim["gain"]#.loc[self.current_stim]
             self.curr_stim_ANG_gain = self.current_stim["angular_gain"]
-            #theta = utils.angle_mean(utils.reduce_to_pi(self.centered_theta))  #use this for fish lock I think
+
             updated_tailpos = self._tailpos * self.curr_stim_ANG_gain
             updated_velocity = self._velocity * self.curr_stim_gain #might change this to be two different stims
+            print("SENDING stimulus_update msg.  it should say:", degrees(updated_tailpos), updated_velocity)
             self.protocol_buddy_pub.socket.send_string('stimulus_update')
             self.protocol_buddy_pub.socket.send_pyobj([degrees(updated_tailpos), updated_velocity])
             self.last_update_time = time.time()
@@ -547,9 +548,11 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
 
             if time.time() - self.stim_start < self.current_stim["stationary_time"]:
                 if self.tlstat:
+                    print("CLOSED LOOP STAT")
                     self.closed_loop_stim_update()
             elif time.time() - self.stim_start >= self.current_stim["stationary_time"]:
                 if self.tlmot:
+                    print("CLOSED LOOP MOT")
                     self.closed_loop_stim_update()
         elif self.stimulating and time.time() - self.stim_start >= self.current_stim["duration"]:
             print("STIMULUS DURATION COMPLETE")
@@ -557,7 +560,6 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
             self.current_stim = {"stim_name":"idle"}
             self.protocol_buddy_pub.socket.send_string('stimulus')
             self.protocol_buddy_pub.socket.send_pyobj(self.current_stim)
-
 
 
 
@@ -569,10 +571,15 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
         self.current_stim_id += 1
         self.protocol_buddy_pub.socket.send_string('stimulus')
         self.protocol_buddy_pub.socket.send_pyobj(self.current_stim)
-        self.closed_loop_stim_update()
         self.last_message = 'some_stimmin'
         self.stimulating = True
         self.stim_start = time.time()
+        self.protocol_buddy_pub.socket.send_string('stimulus_update')
+        self.protocol_buddy_pub.socket.send_pyobj([0, 0])
+        print("STIM SUGGESTED!:", [self.current_stim_id, self.current_stim], "init", "init")
+        self.save([self.current_stim_id, self.current_stim], "init", "init")
+    
+
         
 
     def save(self, stim, velocity, avg_tailpos):

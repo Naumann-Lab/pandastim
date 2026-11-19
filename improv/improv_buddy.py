@@ -351,12 +351,15 @@ class BrukerBuddy(StimulusBuddy):
 
     def set_updating(self, updating_info):
         """change updating status to True so the stimulus will start updating, and also pass the updating info"""
+        print("SET UPD RUN", updating_info)
         self.updating = True
         self.updating_info = updating_info
 
 
+
     def request_updating(self):
         """Let the stimulus to request the current updating status"""
+        print("REQUESTED UPDATE FROM BUDDY.  this should say:", self.updating, self.updating_info) #T^T
         return self.updating, self.updating_info
 
     def alignment_reception(self):
@@ -380,7 +383,7 @@ class BrukerBuddy(StimulusBuddy):
             topic = self.protocol_buddy_sub.socket.recv_string()
             data = self.protocol_buddy_sub.socket.recv_pyobj()
 
-            # print("MSG BUDDY:", topic, data)
+            print("MSG BUDDY:", topic, data)
         
             match topic:
                 case "calibration_stimulus":#when receiving calibration stimulus
@@ -429,9 +432,8 @@ class BrukerBuddy(StimulusBuddy):
 
                         self._stimulus = data
 
-
-
                 case "stimulus_update":
+                    print("RECV STIM UPDATE:", data)
                     self.set_updating(data)
                 case _:
                     print(f"{topic} --  not understood, failed")
