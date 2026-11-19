@@ -56,7 +56,9 @@ class BaseProtocol(DirectObject.DirectObject):
         # timing takes in [max time, elapsed time]
         self.timing_comm = utils.Publisher(port=ports['timing_socket'])
 
-        self.improv_protocol_sub = utils.Subscriber(ports["improv_protocol_socket"])
+        self.improv_protocol_rep = utils.Reply(ports["improv_protocol_socket"])
+        self.improv_protocol_rep.socket.recv_string()
+        self.improv_protocol_rep.socket.send_string("Improv connection established")
 
         self.experiment_running = False
         self.experiment_finished = False
@@ -123,8 +125,9 @@ class BaseProtocol(DirectObject.DirectObject):
         Thread to constantly listen to improv and update when needed
         """
         while self.experiment_running:
-            topic = self.improv_protocol_sub.socket.recv_string()
-            message = self.improv_protocol_sub.socket.recv_pyobj()
+            message = self.improv_protocol_rep.socket.recv_pyobj()
+            self.improv_protocol_rep.socket.send_string("Recieved")
+
 
             if message == "END_EXPERIMENT":
                 self.end_experiment()
@@ -258,9 +261,8 @@ class OpenLoopProtocol(BaseProtocol):
 
         """
         while self.experiment_running:
-            topic = self.improv_protocol_sub.socket.recv_string()
-            message = self.improv_protocol_sub.socket.recv_pyobj()
-
+            message = self.improv_protocol_rep.socket.recv_pyobj()
+            self.improv_protocol_rep.socket.send_string("Recieved")
             print("AUDIENCE RECIEVED:", message)
 
             if message == "END_EXPERIMENT":
@@ -506,19 +508,19 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
 
         """
         while self.experiment_running:
-            topic = self.improv_protocol_sub.socket.recv_string()
-            message = self.improv_protocol_sub.socket.recv_pyobj()
+            message = self.improv_protocol_rep.socket.recv_pyobj()
+            self.improv_protocol_rep.socket.send_string("Recieved")
 
             print("AUDIENCE RECIEVED:", message)
 
             if message == "END_EXPERIMENT":
                 self.end_experiment()
                 return 0
-
             
             if (self.current_stim["stim_name"]!= None) or (self.current_stim["stim_name"]!= "idle"):
                 self.stim_buffer.append(message)
             else:
+                print("audience suggesting stimulus")
                 self.stim_suggestion(message)
 
 

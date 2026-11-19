@@ -1,7 +1,7 @@
 import subprocess
 import sys
 import ast
-from pandastim.utils import Publisher, Subscriber
+from pandastim.utils import Request, Reply
 
 
 def main():
@@ -15,7 +15,11 @@ if __name__ == "__main__":
 
         running = True
         ipSOCK = sys.argv[2]
-        improv_protocol_pub = Publisher(ipSOCK)
+        improv_protocol_req = Request(ipSOCK)
+        improv_protocol_req.socket.send_string("handshake")
+        reply = improv_protocol_req.socket.recv_string()
+        print(reply)
+
 
         while running:
 
@@ -25,9 +29,9 @@ if __name__ == "__main__":
                 ui = ast.literal_eval(ui)
                 print(ui)
             
-
-            improv_protocol_pub.socket.send_string("improv_details")
-            improv_protocol_pub.socket.send_pyobj(ui)
+            improv_protocol_req.socket.send_pyobj(ui)
+            rep = improv_protocol_req.socket.recv_string()
+            print(rep)
 
 
             if ui == "quit":
@@ -50,6 +54,6 @@ if __name__ == "__main__":
             ipSOCK
         ])
 
-        print("LAUNCHED")
+        print("LAUNCHED IMPROV PLACEHOLDER CLI")
 
         
