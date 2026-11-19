@@ -604,4 +604,50 @@ class AttrDict(dict):
     def __setattr__(self, attr, value):
         self[attr] = value
 
+
+
+
+class Request:
+    """
+    REQ socket wrapper class for zmq.
+    Default topic is every topic ("").
+    """
+
+    def __init__(self, port="1234", topic="", ip=None):
+        self.port = port
+        self.topic = topic
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.REQ)
+        if ip is not None:
+            self.socket.connect(ip + str(self.port))
+        else:
+            self.socket.connect("tcp://localhost:" + str(self.port))
+
+
+    def kill(self):
+        self.socket.close()
+        self.context.term()
+
+class Reply:
+    """
+    REP socket wrapper class for zmq.
+    Default topic is every topic ("").
+    """
+
+    def __init__(self, port="1234", topic="", ip=None):
+        self.port = port
+        self.topic = topic
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.REP)
+        if ip is not None:
+            self.socket.bind(ip + str(self.port))
+        else:
+            self.socket.bind("tcp://localhost:" + str(self.port))
+
+
+    def kill(self):
+        self.socket.close()
+        self.context.term()
+
+
         
