@@ -613,13 +613,6 @@ class SequencingWithPause(StimulusSequencing):
     def buddy_task(self, buddytask):
         """talk to a stytrabuddy about what task the buddy should do"""
         self.buddy.pauseStatus(self.paused)
-        # self.buddy.position(self.new_position) #Shouldnt need this?
-
-        #T^T : I think this is like THE core thing that needs to change
-        # self.updating, self.updating_info = self.buddy.request_updating() #*>*
-
-        # # self.next_stimulus = self.buddy.request_stimulus()#request next stimulus from buddy
-        # print("BUDDY SAYS:", self.next_stimulus, self.buddy._stimulus)
 
         #T^T DITTO
         if self.buddy._stimulus is not None:#if there is a stimulus change
@@ -628,15 +621,10 @@ class SequencingWithPause(StimulusSequencing):
                 or isinstance(self.buddy._stimulus, stimulus_details.MaskedStimulusDetailsPack):#handles input of stimulus object
                 self.clear_cards()
                 self.current_stimulus = self.buddy._stimulus
-                # self.next_stimulus = None
                 self.set_stimulus()
-                # self.update_stimulus()
+                self.buddy._stimulus = None
             else:
                 print('stim input to stimulus.py has to be an object belong to stimulus_details class')
-
-
-        elif self.updating:
-            self.update_stimulus()
 
     
         self.buddy.broadcaster()#slight delay of one round in reporting new stimulus because we have to wait till buddy is updated faster
@@ -1129,16 +1117,10 @@ class BrukerStimulus(SequencingWithPause):
         self.buddy.pauseStatus(self.paused)
         self.buddy.position(self.new_position)
 
-        #T^T : I think this is like THE core thing that needs to change
+
         self.updating, self.updating_info = self.buddy.request_updating()
-        print("STIM RECIEVED FROM BUDDY:", self.updating, self.updating_info)
 
-        # # self.next_stimulus = self.buddy.request_stimulus()#request next stimulus from buddy
-        # print("BUDDY SAYS:", self.next_stimulus, self.buddy._stimulus)
-
-        #T^T DITTO
         if self.buddy._stimulus is not None:#if there is a stimulus change
-            print("PRINTING BUDDY STIM:", self.buddy._stimulus)
             if isinstance(self.buddy._stimulus, stimulus_details.MonocularStimulusDetails)\
                 or isinstance(self.buddy._stimulus, stimulus_details.BinocularStimulusDetails)\
                 or isinstance(self.buddy._stimulus, stimulus_details.MaskedStimulusDetailsPack):#handles input of stimulus object

@@ -33,6 +33,7 @@ class StimulusBuddy(DirectObject.DirectObject):
         outputMethod="print",
         savePath=None,
         default_params_path=None,
+        protocol = None
     ):
         if not default_params_path:
             default_params_path = (
@@ -53,6 +54,7 @@ class StimulusBuddy(DirectObject.DirectObject):
         assert outputMethod in outputMethods, f"{outputMethod} not in outputMethods"
         self.outputMethod = outputMethod
         if outputMethod == "zmq":
+            
             self.publisher = utils.Publisher(port = comms['buddy_stimulus_socket'])
             self.publisher = utils.Publisher(
                 port=str(self.default_params["publish_port"])
@@ -81,6 +83,15 @@ class StimulusBuddy(DirectObject.DirectObject):
         self.lastReturnedStim = None
 
         self.receipts = receipts
+        # Setting threads (CBD Note: it seems like the order of this is scrambled.  This is because I am transplanting cleo code into matt code)
+        self.protocol_buddy_sub = utils.Subscriber(port=comms['protocol_buddy_socket'])#talking to protocol
+        self.buddy_stimulus_pub = utils.Publisher(port = comms['buddy_stimulus_socket'])#talking to stimulus
+        self.alignment_buddy_sub = utils.Subscriber(port='7979')
+        self.ThreadList = [tr.Thread(target=protocol, args=(comms, self.default_params)),
+                                         tr.Thread(target=self.msg_reception),
+                                         tr.Thread(target=self.alignment_reception)]
+        for thread in self.ThreadList:
+            thread.start()
 
         #if pstim_comms:
         #    self.subscriber = utils.Subscriber(**pstim_comms)
@@ -240,13 +251,60 @@ class StimulusBuddy(DirectObject.DirectObject):
     def proceed_alignment(self):
         self.output(f"pause")
 
+    def alignment_reception(self):
+        """This function keeps runing in the background to receive messages from the alignment"""
+        while self._running:
+            try:#also talk to alignment
+                alignment = self.alignment_buddy_sub.socket.recv_string(flags=zmq.NOBLOCK)
+                self.alignmentpause = self.alignment_buddy_sub.socket.recv_pyobj(flags=zmq.NOBLOCK)# if pause, it will give an object
+                self.buddy_protocol_pub.socket.send_string('pause_status')
+                self.buddy_protocol_pub.socket.send_pyobj(self.alignmentpause)#'unpause'
+                print('alignment done, next imaging starts, unpause stimulus')
+            except zmq.Again:
+                # Nothing received this time, following previous status
+                pass
+
+    def msg_reception(self):
+        while self._running:
+            topic = self.protocol_buddy_sub.socket.recv_string()
+            data = self.protocol_buddy_sub.socket.recv_pyobj()
+            match topic:
+                case "stimulus":
+
+                    if data["stim_name"] == 'pause':
+                        self.buddy_protocol_pub.socket.send_string('pause_status')
+                        self.buddy_protocol_pub.socket.send_pyobj('pause')
+
+                    elif data["stim_name"] == "idle":
+                        print("idle checked")
+
+                        blank_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'pet turtle',
+                                                                                    texture = textures.BlankTex(),
+                                                                                    velocity=0., angle=0,
+                                                                                    angular_velocity = 0.)
+                        self._stimulus = blank_stimulus
+
+                    else:
+                        print(f"BUDDY RECIEVED: \nTopic: {(topic, type(topic))}\nMessage: {(data, type(data))}")
+
+                        data = stimulus_details.legacy2current_singlestim(data,
+                                                        light_value = self.default_params['light_value'],
+                                                        dark_value=self.default_params['dark_value'],
+                                                        frequency = self.default_params['frequency'],
+                                                        texture_size=self.default_params['window_size'])
+
+                        self._stimulus = data
+
+                case _:
+                    print(f"{topic} --  not understood, failed")
+
 
 class StytraBuddy(StimulusBuddy):
     def __init__(self, comms, params_path, protocol, *args, **kwargs):
         super().__init__(comms = comms, default_params_path= params_path, *args, **kwargs)
 
         self.protocol_buddy_sub = utils.Subscriber(port=comms['protocol_buddy_socket'])#talking to protocol
-        self.buddy_stimulus_pub = utils.Publisher(port = comms['buddy_stimulus_socket'])#talking to stimulus
+        # self.buddy_stimulus_pub = utils.Publisher(port = comms['buddy_stimulus_socket'])#talking to stimulus
         self.stytraThreadList = [tr.Thread(target=protocol, args=(comms, self.default_params)),
                                  tr.Thread(target=self.msg_reception)]
         self.centering = False #use to track centering stimulus initiation request from protocol
@@ -329,7 +387,7 @@ class BrukerBuddy(StimulusBuddy):
 
         self.protocol_buddy_sub = utils.Subscriber(port=comms['protocol_buddy_socket'])#talking to protocol
         self.buddy_protocol_pub = utils.Publisher(port=comms['buddy_protocol_socket'])#talking to protocol
-        self.buddy_stimulus_pub = utils.Publisher(port = comms['buddy_stimulus_socket'])#talking to stimulus
+        # self.buddy_stimulus_pub = utils.Publisher(port = comms['buddy_stimulus_socket'])#talking to stimulus
         self.alignment_buddy_sub = utils.Subscriber(port='7979')
         #self.buddy_alignment_pub = utils.Subscriber(port='5021')
 
@@ -343,7 +401,6 @@ class BrukerBuddy(StimulusBuddy):
             thread.start()
     
     def request_stimulus(self):
-
         if self._pauseStatus:
             return None
         else:
@@ -351,7 +408,6 @@ class BrukerBuddy(StimulusBuddy):
 
     def set_updating(self, updating_info):
         """change updating status to True so the stimulus will start updating, and also pass the updating info"""
-        print("SET UPD RUN", updating_info)
         self.updating = True
         self.updating_info = updating_info
 
@@ -359,7 +415,6 @@ class BrukerBuddy(StimulusBuddy):
 
     def request_updating(self):
         """Let the stimulus to request the current updating status"""
-        print("REQUESTED UPDATE FROM BUDDY.  this should say:", self.updating, self.updating_info) #T^T
         return self.updating, self.updating_info
 
     def alignment_reception(self):
@@ -382,8 +437,6 @@ class BrukerBuddy(StimulusBuddy):
         while self._running:
             topic = self.protocol_buddy_sub.socket.recv_string()
             data = self.protocol_buddy_sub.socket.recv_pyobj()
-
-            print("MSG BUDDY:", topic, data)
         
             match topic:
                 case "calibration_stimulus":#when receiving calibration stimulus
@@ -406,7 +459,6 @@ class BrukerBuddy(StimulusBuddy):
                                                                                    angular_velocity = 0.)
 
                 case "stimulus":
-                    #T^T DO SMYTHING ELSE WITH STIM HERE
 
                     if data["stim_name"] == 'pause':
                         self.buddy_protocol_pub.socket.send_string('pause_status')
@@ -433,7 +485,6 @@ class BrukerBuddy(StimulusBuddy):
                         self._stimulus = data
 
                 case "stimulus_update":
-                    print("RECV STIM UPDATE:", data)
                     self.set_updating(data)
                 case _:
                     print(f"{topic} --  not understood, failed")

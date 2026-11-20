@@ -37,7 +37,7 @@ def wrapper(protocol, ports, parameter_path, tail_arg):
                 pstim.run()
         else:
                 stimBuddy = StimulusBuddy(comms = ports,
-                                        params_path =parameter_path,
+                                        default_params_path =parameter_path, # CBD note:  I recognize that these are different naming conventions.  this seems estigial from a naming disagreement between ZH and ML branches
                                         protocol = protocol)  # start with pausing until Go, get stytra position output
                 pstim = improv_stimulus.SequencingWithPause(buddy=stimBuddy, params_path=parameter_path) #, buddy = ports['buddy_stimulus_socket'])
 
@@ -72,7 +72,7 @@ if __name__ == '__main__':
         subprocess.Popen([
                "python",
                r"C:\Users\User\anaconda3\envs\pstim_cd\Lib\site-packages\pandastim\improv\improv_placeholder.py",
-               _ports["improv_protocol_socket"]  #I WILL DECIDE LATER IF I WANT TO CHANGE THIS TO ONLY TAKE THE ACTUAL IMPROV PORT OR IF IT WILL HAVE TO HANDLE MULTIPLE SOCKETS
+               _ports["improv_protocol_socket"] 
         ])
 
 

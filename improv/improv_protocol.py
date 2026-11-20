@@ -37,20 +37,9 @@ class BaseProtocol(DirectObject.DirectObject):
             print('no calibrated center points found, using center coords in default params')
             self.centered_pt = self.defaults['center_coord']
 
-        # set up handshake communication with stytra for experiment triggering
-        self.experiment_trigger_context = zmq.Context()
-        self.experiment_trigger_comm = self.experiment_trigger_context.socket(zmq.REP)
-        self.experiment_trigger_comm.bind('tcp://*:' + ports['go_socket'])
 
         #this talks to the buddy about starting stimulus and calibration stuff, hopefully
         self.protocol_buddy_pub = utils.Publisher(ports['protocol_buddy_socket'])
-
-        # this receives positional information from sytra
-        self.position_comm = utils.Subscriber(port=ports['tracking_socket'])
-
-        # this port is used for centering, calibrating, and toggling calibration stimulus
-        self.stytra_cam_output_port = utils.Subscriber(ports['image_socket'])
-        self.cam_outputs_thread = tr.Thread(target=self.centering_calibration)
 
         # this is used to publish timing information to update the stytra loading bar
         # timing takes in [max time, elapsed time]
@@ -63,62 +52,18 @@ class BaseProtocol(DirectObject.DirectObject):
         self.experiment_running = False
         self.experiment_finished = False
 
-        self.fish_data = [[np.nan, np.nan, np.nan]]
-        self.last_fish_present = 0
-        self.max_buffer = 500
-
-        self.cam_outputs_thread.start()
-
-        self.t_update_frequency = 1
-        self.last_t_update = 0
- 
-
-        try:
-            self.proj2cam, self.cam2proj = calibration.load_params(self.rig_number)
-        except FileNotFoundError:
-            print("no calibration files found please calibrate")
-
         self.run_experiment()
 
     def run_experiment(self):
         # this should hang here until we handshake, telling tracking to start
-        msg = self.experiment_trigger_comm.recv_string()
-        self.experiment_trigger_comm.send_string('stim', zmq.SNDMORE)
-        self.experiment_trigger_comm.send_pyobj(['GO'])
-
         self.init_time = time.time()
         print('experiment began')
-
-        try:
-            self.proj2cam, self.cam2proj = calibration.load_params(self.rig_number)
-        except FileNotFoundError:
-            print("CALIBRATION FILE NOT FOUND, EXITING")
-            import sys
-            sys.exit()
-
         self.experiment_running = True
-
-        data_stream = tr.Thread(target=self.position_receiver,)
-        data_stream.start()
-
         self.stim_buffer = []
         improv_stream = tr.Thread(target=self.stim_audience,)
         improv_stream.start()
 
-    def position_receiver(self):
-        """Receive fish position from tracking position_comm"""
-        while self.experiment_running:
-            topic = self.position_comm.socket.recv_string()
-            data = self.position_comm.socket.recv_pyobj()
 
-            self.fish_data.append(data)
-
-            if not np.isnan(data[0]):
-                self.last_fish_present = time.time()
-
-            # trim lists
-            if len(self.fish_data) >= self.max_buffer:
-                self.fish_data = self.fish_data[-self.max_buffer//2:]
 
     def stim_audience(self):
         """
@@ -220,7 +165,7 @@ class BaseProtocol(DirectObject.DirectObject):
         print('experiment finished')
         curr_t = time.time()
         self.timing_comm.socket.send_string('time', zmq.SNDMORE)
-        self.timing_comm.socket.send_pyobj([curr_t - self.init_time]) # T^T likely spot for an err
+        self.timing_comm.socket.send_pyobj([curr_t - self.init_time])
         # telling buddy and then stimulus to end
         self.protocol_buddy_pub.socket.send_string('start')
         self.protocol_buddy_pub.socket.send_pyobj(False)
@@ -241,18 +186,12 @@ class OpenLoopProtocol(BaseProtocol):
 
     def run_experiment(self):
         super().run_experiment()
-
         curr_t = time.time()
         self.timing_comm.socket.send_string('time', zmq.SNDMORE)
         #self.timing_comm.socket.send_pyobj([curr_t - self.init_time + 3 + np.sum(self.stimuli.duration.values), curr_t - self.init_time])
 
         #self.stim_sequencer()
 
-    def stim_sequencer(self):
-        if self.current_stim_id > len(self.stimuli) - 1:
-            self.experiment_finished = True
-            self.end_experiment()
-            # do some finishing here
 
     
     def stim_audience(self):
@@ -276,33 +215,74 @@ class OpenLoopProtocol(BaseProtocol):
                 self.stim_suggestion(message)
 
 
-
-        stimulus = self.stimuli.loc[self.current_stim_id]
-        stim = [self.current_stim_id, stimulus]
-        messenger.send('stimulus', [stim])
-        wait_fxn = tr.Thread(target=self.time_delay, args=(stimulus.duration,))
-        wait_fxn.start()
-        wait_fxn.join()
-
-    def time_delay(self, duration):
-        init_time = time.time()
-        while time.time() - init_time <= duration - 0.05:
-            pass
-        self.current_stim_id += 1
-        self.stim_sequencer()
-
-
 class BrukerClosedLoopProtocol(BaseProtocol):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, ports, defaults, *args, **kwargs):
         # update stytras timer this often (in seconds)
         # if this is too fast stytra gets wrecked
+        
+        self.t_update_frequency = 1
+
+        self.current_stim_id = -1
+        self.stimulating = False
+
+        self.defaults = defaults
+        self.rig_number = defaults['rig_number']
+
+        try:
+            self.centered_pt, self.centered_theta = calibration.load_centers(self.rig_number)
+        except:
+            print('no calibrated center points found, using center coords in default params')
+            self.centered_pt = self.defaults['center_coord']
+
+        # set up handshake communication with stytra for experiment triggering
+        self.experiment_trigger_context = zmq.Context()
+        self.experiment_trigger_comm = self.experiment_trigger_context.socket(zmq.REP)
+        self.experiment_trigger_comm.bind('tcp://*:' + ports['go_socket'])
+  
+        #this talks to the buddy about starting stimulus and calibration stuff, hopefully
+        self.protocol_buddy_pub = utils.Publisher(ports['protocol_buddy_socket'])
+
+        # this receives positional information from sytra
+        self.position_comm = utils.Subscriber(port=ports['tracking_socket'])
+    
+        # this port is used for centering, calibrating, and toggling calibration stimulus
+        self.stytra_cam_output_port = utils.Subscriber(ports['image_socket'])
+        self.cam_outputs_thread = tr.Thread(target=self.centering_calibration)
+
+
+        # this is used to publish timing information to update the stytra loading bar
+        # timing takes in [max time, elapsed time]
+        self.timing_comm = utils.Publisher(port=ports['timing_socket'])
+
+        self.experiment_running = False
+        self.experiment_finished = False
+
+        self.fish_data = [[np.nan, np.nan, np.nan]]
+        self.last_fish_present = 0
+        self.max_buffer = 500
+
+        self.cam_outputs_thread.start()
+        print("cam threads init")
+
+        self.t_update_frequency = 1
+        self.last_t_update = 0
 
         self.t_update_frequency = 1
 
         self.current_stim_id = -1
         self.stimulating = False
 
-        super().__init__(*args, **kwargs)
+        try:
+            self.proj2cam, self.cam2proj = calibration.load_params(self.rig_number)
+        except FileNotFoundError:
+            print("no calibration files found please calibrate")
+        print("passed all checks")
+
+        self.run_experiment()
+
+        
+
+        
 
     def centering_calibration(self):
         """receive clicking on the different icons for calibration and tell buddy to display calibration stimuli
@@ -407,6 +387,18 @@ class BrukerClosedLoopProtocol(BaseProtocol):
         self.last_message = None
 
         self.current_stim = {'stim_type' : None, 'angle' : None, 'stim_name': None}
+        msg = self.experiment_trigger_comm.recv_string()
+        self.experiment_trigger_comm.send_string('stim', zmq.SNDMORE)
+        self.experiment_trigger_comm.send_pyobj(['GO'])
+        try:
+            self.proj2cam, self.cam2proj = calibration.load_params(self.rig_number)
+        except FileNotFoundError:
+            print("CALIBRATION FILE NOT FOUND, EXITING")
+            import sys
+            sys.exit()
+        
+        data_stream = tr.Thread(target=self.position_receiver,)
+        data_stream.start()
 
         super().run_experiment()
 
