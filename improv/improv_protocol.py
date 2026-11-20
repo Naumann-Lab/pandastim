@@ -188,12 +188,8 @@ class OpenLoopProtocol(BaseProtocol):
         super().run_experiment()
         curr_t = time.time()
         self.timing_comm.socket.send_string('time', zmq.SNDMORE)
-        #self.timing_comm.socket.send_pyobj([curr_t - self.init_time + 3 + np.sum(self.stimuli.duration.values), curr_t - self.init_time])
+        self.timing_comm.socket.send_pyobj([curr_t - self.init_time])
 
-        #self.stim_sequencer()
-
-
-    
     def stim_audience(self):
         """
         Thread to constantly listen to improv and update when needed
@@ -254,6 +250,13 @@ class BrukerClosedLoopProtocol(BaseProtocol):
         # timing takes in [max time, elapsed time]
         self.timing_comm = utils.Publisher(port=ports['timing_socket'])
 
+        #improv connectors
+
+        self.improv_protocol_rep = utils.Reply(ports["improv_protocol_socket"])
+        self.improv_protocol_rep.socket.recv_string()
+        self.improv_protocol_rep.socket.send_string("Improv connection established")
+
+
         self.experiment_running = False
         self.experiment_finished = False
 
@@ -276,7 +279,6 @@ class BrukerClosedLoopProtocol(BaseProtocol):
             self.proj2cam, self.cam2proj = calibration.load_params(self.rig_number)
         except FileNotFoundError:
             print("no calibration files found please calibrate")
-        print("passed all checks")
 
         self.run_experiment()
 
@@ -381,30 +383,40 @@ class BrukerClosedLoopProtocol(BaseProtocol):
                         print('failed to center', e)
 
     def run_experiment(self):
-        self.filestream = utils.saving(self.defaults['save_path'])
-
-        self.last_t_update = 0
-        self.last_message = None
-
-        self.current_stim = {'stim_type' : None, 'angle' : None, 'stim_name': None}
         msg = self.experiment_trigger_comm.recv_string()
         self.experiment_trigger_comm.send_string('stim', zmq.SNDMORE)
         self.experiment_trigger_comm.send_pyobj(['GO'])
+
+        self.init_time = time.time()
+        print('experiment began')
+
         try:
             self.proj2cam, self.cam2proj = calibration.load_params(self.rig_number)
         except FileNotFoundError:
             print("CALIBRATION FILE NOT FOUND, EXITING")
             import sys
             sys.exit()
-        
+
+        self.experiment_running = True
+
+        self.stim_buffer = []
+        improv_stream = tr.Thread(target=self.stim_audience,)
+        improv_stream.start()
+
         data_stream = tr.Thread(target=self.position_receiver,)
         data_stream.start()
 
-        super().run_experiment()
+        self.filestream = utils.saving(self.defaults['save_path'])
+
+        self.last_t_update = 0
+        self.last_message = None
+
+        self.current_stim = {'stim_type' : None, 'angle' : None, 'stim_name': None}
 
         curr_t = time.time()
         self.timing_comm.socket.send_string('time', zmq.SNDMORE)
-        self.timing_comm.socket.send_pyobj([curr_t - self.init_time]) 
+        self.timing_comm.socket.send_pyobj([curr_t - self.init_time])
+
 
     def save(self, stim, x, y, theta, vigor):
         self.filestream.write("\n")
