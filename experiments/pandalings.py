@@ -37,7 +37,7 @@ def wrapper(protocol, ports, parameter_path, tail_arg):
                 pstim.run()
         else:
                 stimBuddy = StimulusBuddy(comms = ports,
-                                        params_path =parameter_path,
+                                        default_params_path =parameter_path,
                                         protocol = protocol)  # start with pausing until Go, get stytra position output
                 pstim = improv_stimulus.SequencingWithPause(buddy=stimBuddy, params_path=parameter_path) #, buddy = ports['buddy_stimulus_socket'])
 

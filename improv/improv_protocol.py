@@ -235,30 +235,54 @@ class BaseProtocol(DirectObject.DirectObject):
         pass
 
 class OpenLoopProtocol(BaseProtocol):
-    def __init__(self, *args, **kwargs):
-        self.current_stim_id = 0
-        super().__init__(*args, **kwargs)
+    def __init__(self, ports, defaults, *args, **kwargs):
+        # RESET TO BE MORE LIKE OG PANDASTIM PRE CLEO
+        self.defaults = defaults
+        self.rig_number = defaults['rig_number']
+
+        #this talks to the buddy about starting stimulus and calibration stuff, hopefully
+        self.protocol_buddy_pub = utils.Publisher(ports['protocol_buddy_socket'])
+
+        # this is used to publish timing information to update the stytra loading bar
+        # timing takes in [max time, elapsed time]
+        self.timing_comm = utils.Publisher(port=ports['timing_socket'])
+
+        self.improv_protocol_rep = utils.Reply(ports["improv_protocol_socket"])
+        self.improv_protocol_rep.socket.recv_string()
+        self.improv_protocol_rep.socket.send_string("Improv connection established")
+
+        self.experiment_running = False
+        self.experiment_finished = False
+        self.stimulating = False
+
+        self.t_update_frequency = 1
+        self.last_t_update = 0
+        self.current_stim_id = -1
+ 
+        self.run_experiment()
+
 
     def run_experiment(self):
-        super().run_experiment()
+        # super().run_experiment() #WHAT DO YOU ACTUALLY NEED FROM HERE?
+        self.filestream = utils.saving(self.defaults['save_path'])
+        self.init_time = time.time()
+        print('experiment began')
+        self.experiment_running = True
 
+        self.stim_buffer = []
+        improv_stream = tr.Thread(target=self.stim_audience,)
+        improv_stream.start()
+        sequencer_stream = tr.Thread(target=self.stim_sequencer,)
+        sequencer_stream.start()
+        self.current_stim = {'stim_type' : None, 'angle' : None, 'stim_name': None}
         curr_t = time.time()
         self.timing_comm.socket.send_string('time', zmq.SNDMORE)
-        #self.timing_comm.socket.send_pyobj([curr_t - self.init_time + 3 + np.sum(self.stimuli.duration.values), curr_t - self.init_time])
+        self.timing_comm.socket.send_pyobj([curr_t - self.init_time])
 
-        #self.stim_sequencer()
-
-    def stim_sequencer(self):
-        if self.current_stim_id > len(self.stimuli) - 1:
-            self.experiment_finished = True
-            self.end_experiment()
-            # do some finishing here
-
-    
     def stim_audience(self):
         """
         Thread to constantly listen to improv and update when needed
-
+s
         """
         while self.experiment_running:
             message = self.improv_protocol_rep.socket.recv_pyobj()
@@ -268,34 +292,69 @@ class OpenLoopProtocol(BaseProtocol):
             if message == "END_EXPERIMENT":
                 self.end_experiment()
                 return 0
-
             
-            if (self.current_stim["stim_name"]!= None) or (self.current_stim["stim_name"]!= "idle"):
+            if (self.current_stim["stim_name"]!= None) and (self.current_stim["stim_name"]!= "idle"):
+                print("flagged to buffer?", self.current_stim)
                 self.stim_buffer.append(message)
             else:
                 self.stim_suggestion(message)
 
 
 
-        stimulus = self.stimuli.loc[self.current_stim_id]
-        stim = [self.current_stim_id, stimulus]
-        messenger.send('stimulus', [stim])
-        wait_fxn = tr.Thread(target=self.time_delay, args=(stimulus.duration,))
-        wait_fxn.start()
-        wait_fxn.join()
-
-    def time_delay(self, duration):
-        init_time = time.time()
-        while time.time() - init_time <= duration - 0.05:
-            pass
+    def stim_suggestion(self, stim_details):
+        """
+        gets called by stim audience every time there is an improv message
+        """
+        print("stim sugg")
+        self.current_stim = stim_details
         self.current_stim_id += 1
-        self.stim_sequencer()
+        self.protocol_buddy_pub.socket.send_string('stimulus')
+        self.protocol_buddy_pub.socket.send_pyobj(self.current_stim)
+        print("sent", self.current_stim)
+        self.last_message = 'some_stimmin'
+        self.stimulating = True
+        self.stim_start = time.time()
+        self.save([self.current_stim_id, self.current_stim])
+
+    def save(self, stim):
+        self.filestream.write("\n")
+        t = time.time() - self.init_time
+        if 'duration' in stim[1]:
+            dur = stim[1]['duration']
+        else:
+            dur = 99
+        if 'stationary_time' in stim[1]:
+            stat = stim[1]['stationary_time']
+        else:
+            stat = 0
+        self.filestream.write(f"{t}_{self.current_stim_id}_{stim[1]['stim_type']}_{stim[1]['angle']}_{dur}_{stat}")
+        self.filestream.flush()
+
+    def stim_sequencer(self):
+
+        while self.experiment_running:
+            if not self.stimulating:
+                if len(self.stim_buffer) > 0:
+                    print("USING BUFFER:", self.stim_buffer[0])
+                    self.stim_suggestion(self.stim_buffer[0])
+                    self.stim_buffer = self.stim_buffer[1:]
+
+            if self.stimulating and time.time() - self.stim_start >= self.current_stim["duration"]:
+                print("STIMULUS DURATION COMPLETE")
+                self.stimulating = False
+                self.current_stim = {"stim_name":"idle"}
+                self.protocol_buddy_pub.socket.send_string('stimulus')
+                self.protocol_buddy_pub.socket.send_pyobj(self.current_stim)
+
+
+    
 
 
 class BrukerClosedLoopProtocol(BaseProtocol):
     def __init__(self, *args, **kwargs):
         # update stytras timer this often (in seconds)
         # if this is too fast stytra gets wrecked
+        print("bclloop initiated")
 
         self.t_update_frequency = 1
 
@@ -303,7 +362,7 @@ class BrukerClosedLoopProtocol(BaseProtocol):
         self.stimulating = False
 
         super().__init__(*args, **kwargs)
-
+  
     def centering_calibration(self):
         """receive clicking on the different icons for calibration and tell buddy to display calibration stimuli
         also calibrate/centering and save the locations"""
@@ -517,11 +576,12 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
                 self.end_experiment()
                 return 0
             
-            if (self.current_stim["stim_name"]!= None) or (self.current_stim["stim_name"]!= "idle"):
+            if (self.current_stim["stim_name"]!= None) and (self.current_stim["stim_name"]!= "idle"):
                 self.stim_buffer.append(message)
             else:
                 print("audience suggesting stimulus")
                 self.stim_suggestion(message)
+                self.stim_sequencer()
 
 
 
@@ -578,7 +638,6 @@ class TailLockedProtocol(BrukerClosedLoopProtocol):
         self.stim_start = time.time()
         self.protocol_buddy_pub.socket.send_string('stimulus_update')
         self.protocol_buddy_pub.socket.send_pyobj([0, 0])
-        print("STIM SUGGESTED!:", [self.current_stim_id, self.current_stim], "init", "init")
         self.save([self.current_stim_id, self.current_stim], "init", "init")
     
 

@@ -9,7 +9,7 @@ import pandas as pd
 import zmq
 from direct.showbase import DirectObject
 from direct.showbase.MessengerGlobal import messenger
-
+import pandastim
 from pandastim import utils
 from pandastim.stimuli import stimulus_details, textures
 
@@ -33,6 +33,7 @@ class StimulusBuddy(DirectObject.DirectObject):
         outputMethod="print",
         savePath=None,
         default_params_path=None,
+        protocol=None
     ):
         if not default_params_path:
             default_params_path = (
@@ -54,9 +55,6 @@ class StimulusBuddy(DirectObject.DirectObject):
         self.outputMethod = outputMethod
         if outputMethod == "zmq":
             self.publisher = utils.Publisher(port = comms['buddy_stimulus_socket'])
-            self.publisher = utils.Publisher(
-                port=str(self.default_params["publish_port"])
-            )
 
         if savePath:
             self.filestream = utils.saving(savePath)
@@ -81,6 +79,18 @@ class StimulusBuddy(DirectObject.DirectObject):
         self.lastReturnedStim = None
 
         self.receipts = receipts
+
+        self.protocol_buddy_sub = utils.Subscriber(port=comms['protocol_buddy_socket'])#talking to protocol
+        self.buddy_protocol_pub = utils.Publisher(port=comms['buddy_protocol_socket'])#talking to protocol
+        self.buddy_stimulus_pub = utils.Publisher(port = comms['buddy_stimulus_socket'])#talking to stimulus
+        self.alignment_buddy_sub = utils.Subscriber(port='7979')
+
+        if type(self) == pandastim.improv.improv_buddy.StimulusBuddy:
+            self.ThreadList = [tr.Thread(target=protocol, args=(comms, self.default_params)),
+                                tr.Thread(target=self.msg_reception),
+                                tr.Thread(target=self.alignment_reception)]
+            for thread in self.ThreadList:
+                thread.start()
 
         #if pstim_comms:
         #    self.subscriber = utils.Subscriber(**pstim_comms)
@@ -113,20 +123,7 @@ class StimulusBuddy(DirectObject.DirectObject):
 
     def stimulus(self):#, newstimulus):
         return self._stimulus
-        # try:
-        #     if (
-        #             newstimulus.stim_name != self._stimulus.stim_name
-        #         and self._stimChange == False
-        #     ):
-        #         self._stimulus = newstimulus
-        #         self._stimChange = True
-        #     else:
-        #         self._stimChange = False
-        # except AttributeError:
-        #     # we end up here on first pass
-        #     self._stimulus = newstimulus
-        #     if newstimulus is not None:#before the first stimulus got assigned
-        #         self._stimChange = True
+  
 
     def broadcaster(self):
         match self.reportingMethod:
@@ -226,8 +223,6 @@ class StimulusBuddy(DirectObject.DirectObject):
 
             self.filestream.write("\n")
             self.filestream.write(f"{timestamp}_&_{msg.split('_&_')[1]}")
-            # self.filestream.write("\n")
-            # self.filestream.write(f"{timestamp}_&_{stiminfo}")
             self.filestream.flush()
 
     def request_stimulus(self):
@@ -236,104 +231,53 @@ class StimulusBuddy(DirectObject.DirectObject):
         else:
             return self._stimulus #T^T
 
-
     def proceed_alignment(self):
         self.output(f"pause")
 
-
-class StytraBuddy(StimulusBuddy):
-    def __init__(self, comms, params_path, protocol, *args, **kwargs):
-        super().__init__(comms = comms, default_params_path= params_path, *args, **kwargs)
-
-        self.protocol_buddy_sub = utils.Subscriber(port=comms['protocol_buddy_socket'])#talking to protocol
-        self.buddy_stimulus_pub = utils.Publisher(port = comms['buddy_stimulus_socket'])#talking to stimulus
-        self.stytraThreadList = [tr.Thread(target=protocol, args=(comms, self.default_params)),
-                                 tr.Thread(target=self.msg_reception)]
-        self.centering = False #use to track centering stimulus initiation request from protocol
-        self.cali_pos = (None, None)
-        self.updating = False #use to track stimulus update command from protocol
-        self.updating_info = None
-        for thread in self.stytraThreadList:
-            thread.start()
-
-    def set_centering(self, cali_pos):
-        """change centering to True so the stimulus will start centering"""
-        self.centering = not self.centering
-        if cali_pos != (None, None):#once cali pos is set, keeping it from being washed away
-            self.cali_pos = cali_pos
-
-    def request_centering(self):
-        """Let stimulus to request the current centering status"""
-        return self.centering, self.cali_pos
-
-    def set_updating(self, updating_info):
-        """change updating status to True so the stimulus will start updating, and also pass the updating info"""
-        self.updating = True
-        self.updating_info = updating_info
-
-    def request_updating(self):
-        """Let the stimulus to request the current updating status"""
-        return self.updating, self.updating_info
-
     def msg_reception(self):
-        self.centering = False
-        self.updating = False  # assuming not updating
         while self._running:
+   
             topic = self.protocol_buddy_sub.socket.recv_string()
             data = self.protocol_buddy_sub.socket.recv_pyobj()
+
+            print("MSG BUDDY:", topic, data)
+        
             match topic:
-                case "calibration_stimulus":#when receiving calibration stimulus
-                    if data:#if data is True, make calibration signal the first stimulus
-                        cali_params = utils.get_calibration_params()
-                        if cali_params is None:
-                            texture = textures.CalibrationTriangles()
-                        else:
-                            texture = textures.CalibrationTriangles(
-                                texture_size=self.default_params['window_size'],
-                                tri_size=cali_params['tri_size'],circle_radius=cali_params['circle_radius'],
-                                x_offset=cali_params['x_off'], y_offset=cali_params['y_off'])
-                        input_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'calibration',
-                            texture=texture, velocity=0., angle=0)
+                case "stimulus": #CBD NOTE: Shutup, I know its redundant 
+                    #T^T DO SMYTHING ELSE WITH STIM HERE
 
-                    elif not data:#if data is False (clicked the botton again), turn off the calibration signal and add in blank
-                        data = stimulus_details.MonocularStimulusDetails(stim_name = 'pet turtle',
-                                                                                   texture = textures.BlankTex(),
-                                                                                   velocity=0., angle=0)
+                    if data["stim_name"] == 'pause':
+                        self.buddy_protocol_pub.socket.send_string('pause_status')
+                        self.buddy_protocol_pub.socket.send_pyobj('pause')
 
-                case "centering":
-                    self.set_centering(data) #start centering
-                case "stimulus":
-                    data = stimulus_details.legacy2current_singlestim(data,
-                                                           light_value = self.default_params['light_value'],
-                                                           dark_value=self.default_params['dark_value'],
-                                                           frequency = self.default_params['frequency'],
-                                                           texture_size=self.default_params['window_size'])
-                    
+                    elif data["stim_name"] == "idle":
+                        print("idle checked")
 
-                case "clickstim":
-                    data = stimulus_details.MonocularStimulusDetails(
-                        stim_name='centerclick',
-                        texture=textures.CircleGrayTex(circle_radius=50,texture_size=self.default_params['window_size']))
+                        blank_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'pet turtle',
+                                                                                    texture = textures.BlankTex(),
+                                                                                    velocity=0., angle=0,
+                                                                                    angular_velocity = 0.)
+                        self._stimulus = blank_stimulus
 
-                case "stimulus_update":
-                    self.set_updating(data)
+                    else:
+                        print(f"BUDDY RECIEVED: \nTopic: {(topic, type(topic))}\nMessage: {(data, type(data))}")
+
+                        data = stimulus_details.legacy2current_singlestim(data,
+                                                        light_value = self.default_params['light_value'],
+                                                        dark_value=self.default_params['dark_value'],
+                                                        frequency = self.default_params['frequency'],
+                                                        texture_size=self.default_params['window_size'])
+
+                        self._stimulus = data
                 case _:
-                    print(
-                        f"{topic} --  not understood, failed"
-                    )
+                    print(f"{topic} --  not understood, failed")
 
+    def alignment_reception(self):
+        return 0
 
 class BrukerBuddy(StimulusBuddy):
     def __init__(self, comms, params_path, protocol, *args, **kwargs):
         super().__init__(comms = comms, default_params_path= params_path, *args, **kwargs)
-
-        self.protocol_buddy_sub = utils.Subscriber(port=comms['protocol_buddy_socket'])#talking to protocol
-        self.buddy_protocol_pub = utils.Publisher(port=comms['buddy_protocol_socket'])#talking to protocol
-        self.buddy_stimulus_pub = utils.Publisher(port = comms['buddy_stimulus_socket'])#talking to stimulus
-        self.alignment_buddy_sub = utils.Subscriber(port='7979')
-        #self.buddy_alignment_pub = utils.Subscriber(port='5021')
-
-        #self.alignment_sub = utils.Subscriber(prot = comms['protocol_buddy_socket'])
         self.stytraThreadList = [tr.Thread(target=protocol, args=(comms, self.default_params)),
                                  tr.Thread(target=self.msg_reception),
                                  tr.Thread(target=self.alignment_reception)]
@@ -341,6 +285,7 @@ class BrukerBuddy(StimulusBuddy):
         self.updating_info = None
         for thread in self.stytraThreadList:
             thread.start()
+    
     
     def request_stimulus(self):
 
@@ -351,7 +296,6 @@ class BrukerBuddy(StimulusBuddy):
 
     def set_updating(self, updating_info):
         """change updating status to True so the stimulus will start updating, and also pass the updating info"""
-        print("SET UPD RUN", updating_info)
         self.updating = True
         self.updating_info = updating_info
 
@@ -359,7 +303,6 @@ class BrukerBuddy(StimulusBuddy):
 
     def request_updating(self):
         """Let the stimulus to request the current updating status"""
-        print("REQUESTED UPDATE FROM BUDDY.  this should say:", self.updating, self.updating_info) #T^T
         return self.updating, self.updating_info
 
     def alignment_reception(self):
@@ -396,7 +339,7 @@ class BrukerBuddy(StimulusBuddy):
                                 texture_size=self.default_params['window_size'],
                                 tri_size=cali_params['tri_size'],circle_radius=cali_params['circle_radius'],
                                 x_offset=cali_params['x_off'], y_offset=cali_params['y_off'])
-                        input_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'calibration',
+                            input_stimulus = stimulus_details.MonocularStimulusDetails(stim_name = 'calibration',
                             texture=texture, velocity=0., angle=0, angular_velocity = 0.)
                         
                     elif not data:#if data is False (clicked the botton again), turn off the calibration signal and add in blank
@@ -422,7 +365,6 @@ class BrukerBuddy(StimulusBuddy):
                         self._stimulus = blank_stimulus
 
                     else:
-                        print(f"BUDDY RECIEVED: \nTopic: {(topic, type(topic))}\nMessage: {(data, type(data))}")
 
                         data = stimulus_details.legacy2current_singlestim(data,
                                                         light_value = self.default_params['light_value'],
@@ -433,7 +375,6 @@ class BrukerBuddy(StimulusBuddy):
                         self._stimulus = data
 
                 case "stimulus_update":
-                    print("RECV STIM UPDATE:", data)
                     self.set_updating(data)
                 case _:
                     print(f"{topic} --  not understood, failed")

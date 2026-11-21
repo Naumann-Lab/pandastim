@@ -226,7 +226,7 @@ class StimulusSequencing(ShowBase):
 
         # start the movement once everything is set up
         self.taskMgr.add(self.move_binocular, "move_binocular")
-        print("BINOC TASK ADDED")
+
 
     def move_binocular(self, move_binocular_task):
         ### LEFT SIDE ###
@@ -465,12 +465,12 @@ class StimulusSequencing(ShowBase):
                 self.mask_transform = self.trs_transform()
                 self.left_angle = (
                     self.current_stimulus.angle[0]
-                    + self.rotation_offset
+                    + self.rotation_offset+90
                     + self.angle_rotation
                 )
                 self.right_angle = (
                     self.current_stimulus.angle[1]
-                    + self.rotation_offset
+                    + self.rotation_offset+90
                     + self.angle_rotation
                 )
 
@@ -613,31 +613,18 @@ class SequencingWithPause(StimulusSequencing):
     def buddy_task(self, buddytask):
         """talk to a stytrabuddy about what task the buddy should do"""
         self.buddy.pauseStatus(self.paused)
-        # self.buddy.position(self.new_position) #Shouldnt need this?
 
-        #T^T : I think this is like THE core thing that needs to change
-        # self.updating, self.updating_info = self.buddy.request_updating() #*>*
-
-        # # self.next_stimulus = self.buddy.request_stimulus()#request next stimulus from buddy
-        # print("BUDDY SAYS:", self.next_stimulus, self.buddy._stimulus)
-
-        #T^T DITTO
         if self.buddy._stimulus is not None:#if there is a stimulus change
+            print("BUDDY CALLED", self.buddy._stimulus)
             if isinstance(self.buddy._stimulus, stimulus_details.MonocularStimulusDetails)\
                 or isinstance(self.buddy._stimulus, stimulus_details.BinocularStimulusDetails)\
                 or isinstance(self.buddy._stimulus, stimulus_details.MaskedStimulusDetailsPack):#handles input of stimulus object
                 self.clear_cards()
                 self.current_stimulus = self.buddy._stimulus
-                # self.next_stimulus = None
                 self.set_stimulus()
-                # self.update_stimulus()
+                self.buddy._stimulus = None
             else:
                 print('stim input to stimulus.py has to be an object belong to stimulus_details class')
-
-
-        elif self.updating:
-            self.update_stimulus()
-
     
         self.buddy.broadcaster()#slight delay of one round in reporting new stimulus because we have to wait till buddy is updated faster
 
@@ -654,6 +641,7 @@ class BrukerStimulus(SequencingWithPause):
         super().__init__(*args, **kwargs)
         self.curr_id = 0
         self.next_stimulus = None #T^T
+        print("brukerstim init")
 
 
     def set_monocular(self):
@@ -1131,12 +1119,7 @@ class BrukerStimulus(SequencingWithPause):
 
         #T^T : I think this is like THE core thing that needs to change
         self.updating, self.updating_info = self.buddy.request_updating()
-        print("STIM RECIEVED FROM BUDDY:", self.updating, self.updating_info)
 
-        # # self.next_stimulus = self.buddy.request_stimulus()#request next stimulus from buddy
-        # print("BUDDY SAYS:", self.next_stimulus, self.buddy._stimulus)
-
-        #T^T DITTO
         if self.buddy._stimulus is not None:#if there is a stimulus change
             print("PRINTING BUDDY STIM:", self.buddy._stimulus)
             if isinstance(self.buddy._stimulus, stimulus_details.MonocularStimulusDetails)\
